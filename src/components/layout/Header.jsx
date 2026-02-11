@@ -18,7 +18,7 @@ import { MdLibraryAdd } from "react-icons/md";
  * @param {Function} onOpenThreadSwitcher - Opens thread switcher (mobile)
  * @param {Function} onNewChat - Creates new chat session
  */
-const Header = ({ toggleMobileSidebar, selectedLang, onToggleLang, onOpenThreadSwitcher, onNewChat }) => {
+const Header = ({ toggleMobileSidebar, selectedLang, onToggleLang, onOpenThreadSwitcher }) => {
     return (
         <header className="header flex justify-between items-center px-3 md:px-5 py-2 md:py-3 bg-[var(--bg-card)]/95 backdrop-blur-md text-[var(--text-primary)] border-b border-[var(--border-color)] shrink-0 z-40 shadow-sm relative w-full h-14 md:h-16 transition-all duration-300">
 

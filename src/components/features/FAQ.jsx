@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaChevronDown, FaChevronUp } from "react-icons/fa6";
+import { FaChevronDown, FaChevronUp, FaChevronLeft } from "react-icons/fa6";
 
 const faqData = [
     {
@@ -79,8 +79,7 @@ const faqData = [
     }
 ];
 
-
-const FAQ = ({ onFeatureClick }) => {
+const FAQ = ({ onFeatureClick, onClose }) => {
     const [loaded, setLoaded] = useState(false);
     const [openIndex, setOpenIndex] = useState(null);
 
@@ -96,7 +95,16 @@ const FAQ = ({ onFeatureClick }) => {
     return (
         <div className="faq-section w-full max-w-4xl mx-auto mt-8 px-4">
             {/* Header */}
-            <h3 className="text-xl font-bold text-[var(--text-primary)] mb-6">Frequently asked questions</h3>
+            <div className="flex justify-between items-center mb-6">
+                <h3 className="text-xl font-bold text-[var(--text-primary)] uppercase tracking-wider">Frequently Asked Questions</h3>
+                <button
+                    onClick={onClose}
+                    className="p-2 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                    aria-label="Close FAQ"
+                >
+                    <FaChevronLeft className="w-5 h-5 rotate-180" />
+                </button>
+            </div>
 
             {/* FAQ List */}
             <div className={`flex flex-col border-t border-[var(--border-color)] max-h-[250px] overflow-y-auto custom-scrollbar pr-2 transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}>

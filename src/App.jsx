@@ -1,10 +1,14 @@
 import { ThemeProvider } from './context/ThemeContext'
+import { UIProvider } from './context/UIContext'
+
 import Layout from './layouts/Layout'
 
 function App() {
   return (
     <ThemeProvider>
-      <Layout />
+      <UIProvider>
+        <Layout />
+      </UIProvider>
     </ThemeProvider>
   )
 }

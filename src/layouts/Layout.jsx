@@ -1,25 +1,21 @@
-/**
- * @fileoverview Main Application Layout
- * 
- * The primary layout component that orchestrates the chat interface,
- * including sidebar, header, chat messages, input area, and various panels.
- */
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { FaChevronLeft } from "react-icons/fa6";
 
 // Components
-import Sidebar from '../components/Sidebar';
-import Header from '../components/Header';
-import FAQ from '../components/FAQ';
-import StarterGrid from '../components/StarterGrid';
-import InputArea from '../components/InputArea';
-import SearchPanel from '../components/SearchPanel';
-import ChatTabs from '../components/ChatTabs';
-import ThreadSwitcher from '../components/ThreadSwitcher';
-import LogisticsLoader from '../components/LogisticsLoader';
-import MessageContent, { TypingMessage } from '../components/MessageContent';
-import ContextPanel from '../components/ContextPanel';
+import Sidebar from '../components/layout/Sidebar';
+import Header from '../components/layout/Header';
+import FAQ from '../components/features/FAQ';
+import StarterGrid from '../components/features/StarterGrid';
+import InputArea from '../components/chat/InputArea';
+import SearchPanel from '../components/features/SearchPanel';
+import ChatTabs from '../components/chat/ChatTabs';
+import ThreadSwitcher from '../components/layout/ThreadSwitcher';
+import LogisticsLoader from '../components/common/LogisticsLoader';
+import MessageContent, { TypingMessage } from '../components/chat/MessageContent';
+import ContextPanel from '../components/features/ContextPanel';
+import AIProcessingDropdown from '../components/chat/AIProcessingDropdown';
+
+// Context
+import { useUI } from '../context/UIContext';
 
 // Hooks
 import { useThreads } from '../hooks/useThreads';
@@ -46,36 +42,29 @@ const logError = (component, method, error, context = {}) => {
 };
 
 const Layout = () => {
-    // ==================== UI STATE ====================
-    const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
-    const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
-    const [searchPanelOpen, setSearchPanelOpen] = useState(false);
-    const [threadSwitcherOpen, setThreadSwitcherOpen] = useState(false);
-    const [contextPanelOpen, setContextPanelOpen] = useState(false);
-    const [contextPanelData, setContextPanelData] = useState(null);
-    const [showFAQ, setShowFAQ] = useState(false);
+    // ==================== UI CONTEXT ====================
+    const {
+        sidebarCollapsed, toggleSidebar,
+        mobileSidebarOpen, toggleMobileSidebar, closeMobileSidebar,
+        searchPanelOpen, openSearchPanel, closeSearchPanel,
+        contextPanelData, openContextPanel, closeContextPanel,
+        threadSwitcherOpen, setThreadSwitcherOpen,
+        showFAQ, setShowFAQ,
+        langOpen, setLangOpen
+    } = useUI();
 
-    // Language state
-    const [langOpen, setLangOpen] = useState(false);
+    // ==================== LOCAL STATE ====================
+    // Language state is kept local for now as it's specific to the Header/Input interplay
+    // and distinct from "UI visibility" state.
     const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
     const [langSearchTerm, setLangSearchTerm] = useState("");
+
     const filteredLanguages = LANGUAGES.filter(l =>
         l.name.toLowerCase().includes(langSearchTerm.toLowerCase())
     );
 
-    // ==================== SIDEBAR HANDLERS ====================
-    const toggleSidebar = () => setSidebarCollapsed(!sidebarCollapsed);
-    const toggleMobileSidebar = () => setMobileSidebarOpen(!mobileSidebarOpen);
-    const closeMobileSidebar = () => setMobileSidebarOpen(false);
-
-    const openSearchPanel = () => {
-        setSearchPanelOpen(true);
-        if (window.innerWidth <= 768) closeMobileSidebar();
-    };
-    const closeSearchPanel = () => setSearchPanelOpen(false);
-
     // ==================== DATA HOOKS ====================
-    const { threads, deleteThread } = useThreads();
+    const { threads, deleteThread, isLoading: isThreadsLoading } = useThreads();
 
     const {
         activeSessions,
@@ -143,17 +132,7 @@ const Layout = () => {
         }
     }, [activeSession.messages.length, activeSession.isThinking, activeSessionId, activeSession.scrollPosition, scrollToBottom]);
 
-    // Close panels on Escape key
-    useEffect(() => {
-        const handleEsc = (e) => {
-            if (e.key === 'Escape') {
-                closeSearchPanel();
-                setLangOpen(false);
-            }
-        };
-        window.addEventListener('keydown', handleEsc);
-        return () => window.removeEventListener('keydown', handleEsc);
-    }, []);
+    // Note: Global Escape key listener is now handled in UIContext
 
     // ==================== EVENT HANDLERS ====================
 
@@ -268,25 +247,40 @@ const Layout = () => {
         closeMobileSidebar();
     };
 
-    const handleDeleteChatProxy = async (threadId) => {
-        try {
-            if (!threadId) return;
-            const isOpen = activeSessions.find(s => s.id === threadId);
-            if (isOpen) handleTabClose(threadId);
-            await deleteThread(threadId);
-        } catch (error) {
-            logError('Layout', 'handleDeleteChatProxy', error, { threadId });
+    /**
+     * Handlers for Sidebar
+     */
+    // toggleSidebar is imported from context and passed down
+
+    // openSearchPanel is imported from context and passed down
+
+    /**
+     * Delete a chat thread
+     */
+    const handleDeleteChat = async (threadId) => {
+        if (!threadId) return;
+
+        const success = await deleteThread(threadId);
+        if (success) {
+            // If the deleted thread was active, close it or switch to another
+            const isActive = activeSessions.some(s => s.id === threadId);
+            if (isActive) {
+                handleTabClose(threadId);
+            }
         }
     };
 
+    const handleFAQClick = () => {
+        setShowFAQ(true);
+    };
+
     const handleLinkClick = (url) => {
-        setContextPanelData({ title: 'Reference', type: 'link', content: url });
-        setContextPanelOpen(true);
+        openContextPanel({ title: 'Reference', type: 'link', content: url });
     };
 
     // ==================== RENDER ====================
     return (
-        <div className="app flex w-screen h-screen overflow-hidden bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-800 font-sans relative">
+        <div className="app-container flex h-screen w-full bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300 overflow-hidden font-sans">
             {/* Background Gradient */}
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle_at_center,var(--brand-primary),transparent_70%)] opacity-[0.15] blur-3xl pointer-events-none z-0"></div>
 
@@ -299,11 +293,12 @@ const Layout = () => {
                 onSearchClick={openSearchPanel}
                 onNewChat={onNewChatWithScroll}
                 onLoadChat={onLoadChatWithScroll}
-                onDeleteChat={handleDeleteChatProxy}
+                onDeleteChat={handleDeleteChat}
                 threads={threads}
                 currThreadId={activeSessionId}
-                onFAQClick={() => setShowFAQ(!showFAQ)}
+                onFAQClick={handleFAQClick}
                 showFAQ={showFAQ}
+                isLoading={isThreadsLoading}
             />
 
             {/* Main Content */}
@@ -362,57 +357,97 @@ const Layout = () => {
                             /* Chat Messages */
                             <div className="flex flex-col min-h-full">
                                 <div className="flex-1 w-full max-w-5xl mx-auto px-2 md:px-6 py-4 space-y-3 md:space-y-4 pb-32">
-                                    {activeSession.messages.map((msg, idx) => (
-                                        <div key={idx} className={`flex gap-2 md:gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                            {msg.role === 'assistant' && (
-                                                <div className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1">A</div>
-                                            )}
-                                            <div className={`px-3 py-2.5 md:p-4 rounded-2xl leading-relaxed text-[13px] sm:text-sm md:text-base animate-fade-in-up ${msg.role === 'user'
-                                                ? 'max-w-[70%] md:max-w-[80%] bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/20 text-[var(--text-primary)] rounded-tr-sm'
-                                                : 'w-full md:max-w-[85%] bg-transparent text-[var(--text-primary)] rounded-tl-sm'
-                                                }`}>
-                                                {msg.role === 'assistant' ? (
-                                                    msg.isStreaming ? (
-                                                        <TypingMessage
-                                                            content={msg.content}
-                                                            onLinkClick={handleLinkClick}
-                                                            onTyping={scrollToBottom}
-                                                        />
-                                                    ) : msg.isNew ? (
-                                                        <TypingMessage
-                                                            content={msg.content}
-                                                            timestamp={msg.timestamp}
-                                                            onComplete={() => handleTypingComplete(idx)}
-                                                            onTyping={scrollToBottom}
-                                                            onLinkClick={handleLinkClick}
-                                                        />
-                                                    ) : (
-                                                        <MessageContent content={msg.content} onLinkClick={handleLinkClick} />
-                                                    )
-                                                ) : (
-                                                    <>
-                                                        {msg.image && (
-                                                            <img
-                                                                src={msg.image.startsWith('blob:') ? msg.image : `http://localhost:8080${msg.image}`}
-                                                                alt="Attached"
-                                                                className="max-w-full max-h-36 rounded-lg mb-2 border border-[var(--border-color)]"
-                                                            />
-                                                        )}
-                                                        {msg.content}
-                                                    </>
+                                    {activeSession.messages.map((msg, idx) => {
+                                        // Check if this is the last assistant message (for dropdown + metrics placement)
+                                        const isLastAssistantMsg = msg.role === 'assistant' &&
+                                            idx === activeSession.messages.length - 1;
+
+                                        // Show dropdown in last assistant message if we have steps or metrics
+                                        const showDropdownInAssistant = isLastAssistantMsg &&
+                                            (activeSession.thinkingSteps?.length > 0 || activeSession.metrics);
+
+                                        const isProcessingComplete = !activeSession.isThinking &&
+                                            (activeSession.thinkingSteps?.length > 0 || activeSession.metrics);
+
+                                        return (
+                                            <React.Fragment key={idx}>
+                                                {/* User Message */}
+                                                {msg.role === 'user' && (
+                                                    <div className="flex gap-2 md:gap-4 justify-end">
+                                                        <div className="px-3 py-2.5 md:p-4 rounded-2xl leading-relaxed text-[13px] sm:text-sm md:text-base animate-fade-in-up max-w-[70%] md:max-w-[80%] bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/20 text-[var(--text-primary)] rounded-tr-sm">
+                                                            {msg.image && (
+                                                                <img
+                                                                    src={msg.image.startsWith('blob:') ? msg.image : `http://localhost:8080${msg.image}`}
+                                                                    alt="Attached"
+                                                                    className="max-w-full max-h-36 rounded-lg mb-2 border border-[var(--border-color)]"
+                                                                />
+                                                            )}
+                                                            {msg.content}
+                                                        </div>
+                                                        <div className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1">U</div>
+                                                    </div>
                                                 )}
-                                            </div>
-                                            {msg.role === 'user' && (
-                                                <div className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1">U</div>
-                                            )}
-                                        </div>
-                                    ))}
-                                    {activeSession.isThinking && (
-                                        <div className="flex gap-4 justify-start">
-                                            <div className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1">A</div>
-                                            <LogisticsLoader />
-                                        </div>
-                                    )}
+
+                                                {/* Assistant Message - Combined block with dropdown + response */}
+                                                {msg.role === 'assistant' && (
+                                                    <div className="flex gap-2 md:gap-4 justify-start">
+                                                        <div className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1">A</div>
+                                                        <div className="w-full md:max-w-[85%] animate-fade-in-up">
+                                                            {/* AI Processing Dropdown - ABOVE the response text */}
+                                                            {showDropdownInAssistant && (
+                                                                <AIProcessingDropdown
+                                                                    steps={activeSession.thinkingSteps}
+                                                                    metrics={activeSession.metrics}
+                                                                    isComplete={isProcessingComplete}
+                                                                />
+                                                            )}
+
+                                                            {/* Response Content */}
+                                                            <div className="text-[13px] sm:text-sm md:text-base text-[var(--text-primary)] leading-relaxed">
+                                                                {msg.isStreaming ? (
+                                                                    <TypingMessage
+                                                                        content={msg.content}
+                                                                        onLinkClick={handleLinkClick}
+                                                                        onTyping={scrollToBottom}
+                                                                    />
+                                                                ) : msg.isNew ? (
+                                                                    <TypingMessage
+                                                                        content={msg.content}
+                                                                        timestamp={msg.timestamp}
+                                                                        onComplete={() => handleTypingComplete(idx)}
+                                                                        onTyping={scrollToBottom}
+                                                                        onLinkClick={handleLinkClick}
+                                                                    />
+                                                                ) : (
+                                                                    <MessageContent content={msg.content} onLinkClick={handleLinkClick} />
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Show loader if waiting for first message after user query */}
+                                                {msg.role === 'user' && idx === activeSession.messages.length - 1 && activeSession.isThinking && (
+                                                    <div className="flex gap-2 md:gap-4 justify-start">
+                                                        <div className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1">A</div>
+                                                        <div className="w-full md:max-w-[85%] animate-fade-in-up">
+                                                            {activeSession.thinkingSteps?.length > 0 ? (
+                                                                <AIProcessingDropdown
+                                                                    steps={activeSession.thinkingSteps}
+                                                                    metrics={null}
+                                                                    isComplete={false}
+                                                                />
+                                                            ) : (
+                                                                <LogisticsLoader />
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </React.Fragment>
+                                        );
+                                    })}
+
+
                                     <div ref={messagesEndRef} />
                                 </div>
 
@@ -430,6 +465,7 @@ const Layout = () => {
                                         />
                                     </div>
                                 </div>
+
                             </div>
                         )}
                     </div>
@@ -444,13 +480,10 @@ const Layout = () => {
                                 className="w-full max-w-4xl bg-[var(--bg-card)] rounded-2xl border border-[var(--border-color)] shadow-2xl p-6 overflow-y-auto max-h-full"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <div className="flex justify-between items-center mb-6 px-2">
-                                    <h3 className="text-xl font-bold text-[var(--text-primary)] uppercase tracking-wider">Frequently Asked Questions</h3>
-                                    <button onClick={() => setShowFAQ(false)} className="p-2 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors">
-                                        <FaChevronLeft className="w-5 h-5 rotate-180" />
-                                    </button>
-                                </div>
-                                <FAQ onFeatureClick={(text) => { handleFeatureClick(text); setShowFAQ(false); }} />
+                                <FAQ
+                                    onFeatureClick={(text) => { handleFeatureClick(text); setShowFAQ(false); }}
+                                    onClose={() => setShowFAQ(false)}
+                                />
                             </div>
                         </div>
                     )}
@@ -469,9 +502,9 @@ const Layout = () => {
 
             {/* Context Panel */}
             <ContextPanel
-                isOpen={contextPanelOpen}
-                onClose={() => setContextPanelOpen(false)}
-                data={contextPanelData}
+                isOpen={contextPanelData.open}
+                onClose={closeContextPanel}
+                data={contextPanelData.data}
             />
 
             {/* Language Picker */}

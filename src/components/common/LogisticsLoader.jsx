@@ -6,8 +6,9 @@ import { FaShip, FaPlane, FaTruck, FaBox } from "react-icons/fa6";
  * Displays a rotating icon animation to indicate AI processing state.
  * Cycles through logistics-related icons (Ship, Plane, Truck, Box).
  */
+const icons = [FaShip, FaPlane, FaTruck, FaBox];
+
 const LogisticsLoader = () => {
-    const icons = [FaShip, FaPlane, FaTruck, FaBox];
     const [index, setIndex] = useState(0);
 
     // Rotate through icons every 1.2s

@@ -14,7 +14,7 @@ const SearchData = [
     { id: 9, title: "Get Help", description: "Contact support or read FAQs", category: "Help", keywords: ["help", "support", "faq", "contact", "assistance"] }
 ];
 
-const SearchPanel = ({ isOpen, onClose, onResultClick, onStartChat, onLoadChat, threads = [] }) => {
+const SearchPanel = ({ isOpen, onClose, onStartChat, onLoadChat, threads = [] }) => {
 
     const [searchTerm, setSearchTerm] = useState("");
     const [results, setResults] = useState([]);
@@ -129,26 +129,28 @@ const SearchPanel = ({ isOpen, onClose, onResultClick, onStartChat, onLoadChat, 
             ></div>
 
             {/* Panel */}
-            <div className={`search-panel fixed top-0 left-0 w-[380px] h-screen bg-[var(--bg-card)]/95 backdrop-blur-2xl border-r border-[var(--border-color)] z-[2000] shadow-2xl flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+            <div className={`search-panel fixed top-0 left-0 w-[420px] h-screen bg-[var(--bg-card)]/98 backdrop-blur-2xl border-r border-[var(--border-color)] z-[2000] shadow-2xl flex flex-col transition-transform duration-300 ease-[cubic-bezier(0.2,0,0,1)] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>
 
                 {/* Header */}
-                <div className="search-panel-header p-5 pb-2 shrink-0">
-                    <div className="flex items-center justify-between mb-4">
-                        <h2 className="text-lg font-bold tracking-tight text-[var(--text-primary)]">Search</h2>
+                <div className="search-panel-header p-6 pb-4 shrink-0">
+                    <div className="flex items-center justify-between mb-6">
+                        <div className="flex flex-col">
+                            <h2 className="text-2xl font-bold tracking-tight text-[var(--text-primary)]">Search</h2>
+                        </div>
                         <button
                             className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] transition-colors"
                             onClick={onClose}
                         >
-                            <FaXmark />
+                            <FaXmark className="text-lg" />
                         </button>
                     </div>
 
                     <div className="search-input-wrapper relative group">
-                        <FaMagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-tertiary)] group-focus-within:text-[var(--brand-primary)] transition-colors" />
+                        <FaMagnifyingGlass className="absolute left-4 top-1/2 -translate-y-1/2 text-[var(--text-secondary)] group-focus-within:text-[var(--brand-primary)] transition-colors text-lg" />
                         <input
                             type="text"
-                            className="w-full py-3 pl-11 pr-4 rounded-xl bg-[var(--bg-sidebar)] border border-transparent focus:bg-[var(--bg-primary)] focus:border-[var(--brand-primary)] text-[var(--text-primary)] text-sm outline-none transition-all shadow-inner placeholder:text-[var(--text-tertiary)]"
-                            placeholder="Find chats, tools, docs..."
+                            className="w-full py-3.5 pl-12 pr-4 rounded-xl bg-[var(--bg-secondary)] border-2 border-transparent focus:bg-[var(--bg-card)] focus:border-[var(--brand-primary)] text-[var(--text-primary)] text-base outline-none transition-all shadow-sm placeholder:text-[var(--text-primary)]"
+                            placeholder="Type to search..."
                             value={searchTerm}
                             onChange={handleSearch}
                             autoFocus
@@ -157,26 +159,27 @@ const SearchPanel = ({ isOpen, onClose, onResultClick, onStartChat, onLoadChat, 
                 </div>
 
                 {/* Results Area */}
-                <div className="flex-1 overflow-y-auto px-3 py-2 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto px-4 py-2 custom-scrollbar">
                     {results.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center h-64 text-[var(--text-tertiary)] animate-in fade-in zoom-in duration-300">
-                            <div className="w-16 h-16 bg-[var(--bg-sidebar)] rounded-full flex items-center justify-center mb-4">
-                                <FaMagnifyingGlass className="text-2xl opacity-40" />
+                        <div className="flex flex-col items-center justify-center h-[50vh] text-[var(--text-tertiary)] animate-in fade-in zoom-in duration-300">
+                            <div className="w-20 h-20 bg-[var(--bg-secondary)] rounded-2xl flex items-center justify-center mb-4 shadow-sm">
+                                <FaMagnifyingGlass className="text-3xl opacity-30" />
                             </div>
-                            <p className="text-sm font-medium">No results found</p>
-                            <p className="text-xs opacity-60 mt-1">Try "Freight" or "Report"</p>
+                            <p className="text-base font-medium text-[var(--text-secondary)]">No results found</p>
+                            <p className="text-sm opacity-60 mt-1">Try different keywords</p>
                         </div>
                     ) : (
                         Object.keys(groupedResults).map(category => (
-                            <div key={category} className="mb-4">
-                                <div className="px-3 py-2 text-[10px] font-bold uppercase tracking-widest text-[var(--text-tertiary)] sticky top-0 bg-[var(--bg-card)]/90 backdrop-blur-md z-10 rounded-b-lg mb-1">
+                            <div key={category} className="mb-6">
+                                <div className="px-2 py-2 text-[11px] font-bold uppercase tracking-wider text-[var(--text-secondary)] sticky top-0 bg-[var(--bg-card)]/95 backdrop-blur-md z-10 flex items-center gap-2">
+                                    <span className="w-1 h-3 rounded-full bg-[var(--brand-primary)]"></span>
                                     {category}
                                 </div>
-                                <div className="space-y-1">
+                                <div className="space-y-1.5 mt-1">
                                     {groupedResults[category].map(item => (
                                         <div
-                                            key={item.id}
-                                            className="group flex items-start gap-3 p-3 rounded-xl cursor-pointer hover:bg-[var(--bg-tertiary)] transition-all duration-200 border border-transparent hover:border-[var(--border-color)]"
+                                            key={item.id || item.threadId}
+                                            className="group flex items-start gap-4 p-3.5 rounded-xl cursor-pointer hover:bg-[var(--bg-secondary)] transition-all duration-200 border border-transparent hover:border-[var(--border-color)] shadow-sm hover:shadow-md hover:-translate-y-0.5"
                                             onClick={() => {
                                                 if (item.category && item.description && onStartChat) {
                                                     onStartChat(item.title);
@@ -187,18 +190,12 @@ const SearchPanel = ({ isOpen, onClose, onResultClick, onStartChat, onLoadChat, 
                                             }}
                                         >
                                             <div className="flex-1 min-w-0">
-                                                <h3 className="text-sm font-medium text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors truncate">
+                                                <h3 className="text-[15px] font-semibold text-[var(--text-primary)] group-hover:text-[var(--brand-primary)] transition-colors truncate">
                                                     {highlightText(item.title || "New Chat", searchTerm)}
                                                 </h3>
                                                 {item.description && (
-                                                    <p className="text-xs text-[var(--text-secondary)] truncate mt-0.5 opacity-80 group-hover:opacity-100">
+                                                    <p className="text-[13px] text-[var(--text-secondary)] truncate mt-1 opacity-90">
                                                         {highlightText(item.description, searchTerm)}
-                                                    </p>
-                                                )}
-                                                {/* If it's a chat history item with no description, maybe show date? */}
-                                                {!item.description && (
-                                                    <p className="text-[10px] text-[var(--text-tertiary)] mt-1">
-                                                        {new Date(item.updatedAt || item.createdAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                                                     </p>
                                                 )}
                                             </div>

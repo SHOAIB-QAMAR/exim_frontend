@@ -1,5 +1,5 @@
 import React, { useRef, useMemo } from 'react';
-import useSpeechToText from '../hooks/useSpeechToText';
+import useSpeechToText from '../../hooks/useSpeechToText';
 import { FaPaperclip, FaMicrophone, FaStop, FaPaperPlane, FaXmark } from "react-icons/fa6";
 
 const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setSelectedFile, disabled = false }) => {
@@ -183,10 +183,10 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
                             <button
                                 type="button"
                                 className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${disabled
-                                        ? 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed opacity-50'
-                                        : (inputValue.trim() || selectedFile)
-                                            ? 'bg-[var(--brand-primary)] text-white shadow-md hover:shadow-lg active:scale-95 cursor-pointer'
-                                            : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-not-allowed'}`}
+                                    ? 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed opacity-50'
+                                    : (inputValue.trim() || selectedFile)
+                                        ? 'bg-[var(--brand-primary)] text-white shadow-md hover:shadow-lg active:scale-95 cursor-pointer'
+                                        : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-not-allowed'}`}
                                 onClick={handleSend}
                                 disabled={disabled || (!inputValue.trim() && !selectedFile)}
                                 title={disabled ? "Wait for response to complete" : "Send message"}

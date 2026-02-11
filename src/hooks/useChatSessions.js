@@ -10,7 +10,7 @@ import { v1 as uuidv1 } from 'uuid';
 import ChatService from '../services/chat.service';
 
 /** Maximum concurrent active sessions before LRU eviction */
-const MAX_ACTIVE_SESSIONS = 6;
+const MAX_ACTIVE_SESSIONS = 7;
 
 /**
  * Logs errors with detailed context for debugging
@@ -41,13 +41,6 @@ const createSession = (id = uuidv1(), title = "New Chat") => ({
     selectedFile: null
 });
 
-/**
- * Custom hook for managing multiple chat sessions
- * 
- * @param {Array} threads - Available threads from server
- * @param {Function} closeMobileSidebar - Callback to close mobile sidebar
- * @returns {Object} Session state and handlers
- */
 export const useChatSessions = (threads = [], closeMobileSidebar) => {
     const [activeSessions, setActiveSessions] = useState([createSession()]);
     const [activeSessionId, setActiveSessionId] = useState(activeSessions[0].id);

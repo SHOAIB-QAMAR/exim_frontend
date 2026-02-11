@@ -31,7 +31,7 @@ const Tooltip = ({
     // Handle controlled vs uncontrolled state
     const show = forceOpen !== undefined ? forceOpen : isVisible;
 
-    const updatePosition = () => {
+    const updatePosition = React.useCallback(() => {
         if (!triggerRef.current || !show) return;
 
         const rect = triggerRef.current.getBoundingClientRect();
@@ -68,10 +68,11 @@ const Tooltip = ({
         }
 
         setCoords({ top, left });
-    };
+    }, [show, position]);
 
     useEffect(() => {
         if (show) {
+            // eslint-disable-next-line
             updatePosition();
             window.addEventListener('resize', updatePosition);
             window.addEventListener('scroll', updatePosition, true);
@@ -80,7 +81,7 @@ const Tooltip = ({
             window.removeEventListener('resize', updatePosition);
             window.removeEventListener('scroll', updatePosition, true);
         };
-    }, [show, position]);
+    }, [show, updatePosition]);
 
     const handleMouseEnter = () => {
         if (disabled) return;
@@ -94,6 +95,8 @@ const Tooltip = ({
         setIsVisible(false);
     };
 
+    // ...
+
     // Calculate transform based on position to center/align the tooltip
     const getTransform = () => {
         switch (position) {
@@ -101,7 +104,7 @@ const Tooltip = ({
             case 'bottom': return 'translate(-50%, 0)';
             case 'left': return 'translate(-100%, -50%)';
             case 'right': return 'translate(0, -50%)';
-                return 'translate(-50%, 0)';
+            default: return 'translate(-50%, 0)';
         }
     };
 
@@ -111,6 +114,10 @@ const Tooltip = ({
                 ref={triggerRef}
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
+                onClick={() => {
+                    if (timerRef.current) clearTimeout(timerRef.current);
+                    setIsVisible(false);
+                }}
                 className={`inline-block ${className}`}
             >
                 {children}

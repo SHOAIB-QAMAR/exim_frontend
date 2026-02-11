@@ -258,28 +258,15 @@ class SharedWebSocketService {
             };
 
             this.socket.onmessage = (event) => {
-                try {
-                    const data = JSON.parse(event.data);
-                    if (!data.threadId) return;
-
-                    this._notifySubscribers(data.threadId, data);
-                    this.channel.postMessage({
-                        type: 'MESSAGE_RECEIVED',
-                        threadId: data.threadId,
-                        message: data,
-                        originTabId: this.tabId
-                    });
-                } catch (err) {
-                    console.error('[SharedWS] Error parsing message:', err);
-                }
+                this._handleMessage(event);
             };
 
-            this.socket.onerror = (error) => {
+            this.socket.onerror = () => {
                 console.error('[SharedWS] WebSocket error observed');
                 // Don't broadcast here, onclose will handle retry logic
             };
 
-            this.socket.onclose = (event) => {
+            this.socket.onclose = () => {
                 this.socket = null;
                 if (!this.isExplicitlyDisconnected && this.activeThreads.size > 0) {
                     this._broadcastError('Connection lost. Reconnecting...');
@@ -309,6 +296,50 @@ class SharedWebSocketService {
                 this._createWebSocket();
             }
         }, delay);
+    }
+
+    /**
+     * Handles incoming WebSocket messages
+     * Parses both SSE-style data frames and standard JSON
+     */
+    _handleMessage(event) {
+        try {
+            let data;
+            const rawData = event.data;
+
+            // Check for SSE-style "data: {...}" format
+            if (typeof rawData === 'string' && rawData.startsWith('data: ')) {
+                const jsonStr = rawData.substring(6).trim();
+                if (!jsonStr) return; // Skip empty heartbeats
+                data = JSON.parse(jsonStr);
+            } else {
+                // Standard JSON message
+                data = JSON.parse(rawData);
+            }
+
+            // Handle ping/pong
+            if (data.type === 'pong') {
+                return;
+            }
+
+            // Extract threadId from message (varies by backend format)
+            const threadId = data.threadId || data.thread_id || data.chat_id || this.activeThreadId;
+
+            // Notify local subscribers
+            this._notifySubscribers(threadId, data);
+
+            // Broadcast to other tabs
+            if (this.isLeader) {
+                this.channel.postMessage({
+                    type: 'MESSAGE_RECEIVED',
+                    threadId,
+                    message: data,
+                    originTabId: this.tabId
+                });
+            }
+        } catch (error) {
+            console.error('[SharedWS] Failed to parse message:', error, event.data);
+        }
     }
 
     _flushMessageQueue() {

@@ -1,9 +1,9 @@
-import { FaMagnifyingGlass, FaEllipsisVertical, FaChevronDown, FaShip, FaMapLocationDot, FaFileContract, FaBars, FaChevronLeft, FaSun, FaMoon } from "react-icons/fa6";
+import { FaMagnifyingGlass, FaEllipsisVertical, FaChevronDown, FaShip, FaBars, FaChevronLeft, FaSun, FaMoon } from "react-icons/fa6";
 import { FaQuestionCircle } from "react-icons/fa";
-import { useTheme } from '../context/ThemeContext';
+import { useTheme } from '../../context/ThemeContext';
 import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
-import Tooltip from './Tooltip';
+import Tooltip from '../common/Tooltip';
 
 // ChatItem component that shows tooltip only when title is truncated (has ellipsis)
 const ChatItem = ({ title, firstMessage }) => {
@@ -40,7 +40,7 @@ const ChatItem = ({ title, firstMessage }) => {
     );
 };
 
-const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, onSearchClick, onNewChat, threads = [], currThreadId, onLoadChat, onDeleteChat, onFAQClick, showFAQ }) => {
+const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, onSearchClick, threads = [], currThreadId, onLoadChat, onDeleteChat, onFAQClick, showFAQ, isLoading }) => {
     const { theme, toggleTheme } = useTheme();
     const [activeMenu, setActiveMenu] = useState(null); // Track which chat menu is open
     const [isDeleting, setIsDeleting] = useState(false);
@@ -56,50 +56,10 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
         setActiveMenu(null);
     };
 
-    const [showHistory, setShowHistory] = useState(false);
-
-    // Category Expansion State
-    const [expandedCategories, setExpandedCategories] = useState({
-        freight: false,
-        vessel: false,
-        docs: false
-    });
-
-    const toggleCategory = (cat) => {
-        setExpandedCategories(prev => ({
-            ...prev,
-            [cat]: !prev[cat]
-        }));
-    };
-
-    // Categorize threads
-    // Categorize threads - Memoized for performance
-    const categories = React.useMemo(() => {
-        const cats = {
-            freight: [],
-            vessel: [],
-            docs: [],
-            history: []
-        };
-
-        threads.forEach(thread => {
-            const title = (thread.title || "").toLowerCase();
-            if (title.match(/rate|freight|shipping|container|lcl|fcl|quote/)) {
-                cats.freight.push(thread);
-            } else if (title.match(/vessel|track|route|map|locat|position|schedule/)) {
-                cats.vessel.push(thread);
-            } else if (title.match(/bill|lading|invoice|doc|contract|certificate/)) {
-                cats.docs.push(thread);
-            } else {
-                cats.history.push(thread);
-            }
-        });
-        return cats;
-    }, [threads]);
+    const [showHistory, setShowHistory] = useState(true);
 
     // Group history threads by date - Memoized
     const groupedHistory = React.useMemo(() => {
-        const historyThreads = categories.history;
         const groups = {
             "Today": [],
             "Yesterday": [],
@@ -117,7 +77,7 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
         const last30Days = new Date(today);
         last30Days.setDate(last30Days.getDate() - 30);
 
-        historyThreads.forEach(thread => {
+        threads.forEach(thread => {
             const threadDate = new Date(thread.updatedAt || thread.createdAt);
             const dateCheck = new Date(threadDate.getFullYear(), threadDate.getMonth(), threadDate.getDate());
 
@@ -134,8 +94,9 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
             }
         });
 
+        // eslint-disable-next-line
         return Object.entries(groups).filter(([_, list]) => list.length > 0);
-    }, [categories.history]);
+    }, [threads]);
 
     // Helper to render a thread item
     const renderThreadItem = (thread) => (
@@ -272,82 +233,12 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
                     </div>
                 </div>
 
-                {/* Categorized Menus - Independent Section */}
-                <div className="shrink-0 overflow-y-auto max-h-[40%] px-2 custom-scrollbar space-y-4">
-
-                    {/* Freight Category */}
-                    {categories.freight.length > 0 && (
-                        <div className="category-section">
-                            <div
-                                className={`flex items-center justify-between text-[var(--brand-primary)] px-2 mb-1.5 cursor-pointer hover:bg-[var(--bg-tertiary)] rounded-md py-1 transition-colors ${isExpanded ? 'opacity-100' : 'hidden'}`}
-                                onClick={() => toggleCategory('freight')}
-                            >
-                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
-                                    <FaShip /> FREIGHT & SHIPPING
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] px-1.5 rounded text-[10px]">{categories.freight.length}</span>
-                                    <FaChevronDown className={`text-[10px] transition-transform duration-200 ${expandedCategories.freight ? 'rotate-180' : ''}`} />
-                                </div>
-                            </div>
-                            <div className={`flex flex-col transition-all duration-300 overflow-hidden ${expandedCategories.freight ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                                {categories.freight.map(thread => renderThreadItem(thread))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Tracking Category */}
-                    {categories.vessel.length > 0 && (
-                        <div className="category-section">
-                            <div
-                                className={`flex items-center justify-between text-[var(--brand-primary)] px-2 mb-1.5 cursor-pointer hover:bg-[var(--bg-tertiary)] rounded-md py-1 transition-colors ${isExpanded ? 'opacity-100' : 'hidden'}`}
-                                onClick={() => toggleCategory('vessel')}
-                            >
-                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
-                                    <FaMapLocationDot /> VESSEL & TRACKING
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] px-1.5 rounded text-[10px]">{categories.vessel.length}</span>
-                                    <FaChevronDown className={`text-[10px] transition-transform duration-200 ${expandedCategories.vessel ? 'rotate-180' : ''}`} />
-                                </div>
-                            </div>
-                            <div className={`flex flex-col gap-0.5 transition-all duration-300 overflow-hidden ${expandedCategories.vessel ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                                {categories.vessel.map(thread => renderThreadItem(thread))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Docs Category */}
-                    {categories.docs.length > 0 && (
-                        <div className="category-section">
-                            <div
-                                className={`flex items-center justify-between text-[var(--brand-primary)] px-2 mb-1.5 cursor-pointer hover:bg-[var(--bg-tertiary)] rounded-md py-1 transition-colors ${isExpanded ? 'opacity-100' : 'hidden'}`}
-                                onClick={() => toggleCategory('docs')}
-                            >
-                                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-wider">
-                                    <FaFileContract /> DOCUMENTATION
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <span className="bg-[var(--brand-primary)]/10 text-[var(--brand-primary)] px-1.5 rounded text-[10px]">{categories.docs.length}</span>
-                                    <FaChevronDown className={`text-[10px] transition-transform duration-200 ${expandedCategories.docs ? 'rotate-180' : ''}`} />
-                                </div>
-                            </div>
-                            <div className={`flex flex-col gap-0.5 transition-all duration-300 overflow-hidden ${expandedCategories.docs ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'}`}>
-                                {categories.docs.map(thread => renderThreadItem(thread))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Divider */}
-                {isExpanded && <div className="border-t border-[var(--border-color)] my-2 mx-2 shrink-0"></div>}
-
                 {/* Chat History Section - Independent Scroll */}
                 <div className="flex-1 overflow-y-auto min-h-0 px-2 custom-scrollbar mb-2 relative">
                     {/* Chat History Header - Toggleable */}
                     <div className={`chat-history-section ${!isExpanded ? 'hidden' : ''} sticky top-0 bg-[var(--bg-sidebar)] z-10 pb-2 pt-1`}>
                         <div
-                            className="px-2 mb-1.5 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider flex justify-between items-center cursor-pointer hover:text-[var(--text-primary)] transition-colors"
+                            className="px-2 mb-1.5 text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider flex justify-between items-center cursor-pointer hover:text-[var(--text-primary)] transition-colors"
                             onClick={() => setShowHistory(!showHistory)}
                         >
                             <span className="flex items-center gap-2">History</span>
@@ -360,7 +251,19 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
                     {/* Render History only if toggled ON and Expanded */}
                     {isExpanded && showHistory && (
                         <div className="chat-list mb-4 animate-in slide-in-from-top-2 duration-200">
-                            {groupedHistory.length === 0 ? (
+                            {isLoading ? (
+                                /* Skeleton Loader */
+                                <div className="px-2 space-y-4 mt-2">
+                                    {[1, 2, 3].map((g) => (
+                                        <div key={g} className="space-y-2">
+                                            <div className="h-3 w-20 bg-[var(--bg-tertiary)] rounded animate-pulse mb-2"></div>
+                                            {[1, 2].map((i) => (
+                                                <div key={i} className="h-8 w-full bg-[var(--bg-tertiary)]/50 rounded-lg animate-pulse"></div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : groupedHistory.length === 0 ? (
                                 <div className="text-center text-sm text-[var(--text-secondary)] mt-4">
                                     No history
                                 </div>
@@ -368,7 +271,7 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
                                 groupedHistory.map(([groupName, groupThreads]) => (
                                     <div key={groupName} className="mb-4">
                                         <div className="chat-history-header px-2 mb-1">
-                                            <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wide">{groupName}</span>
+                                            <span className="text-xs font-semibold text-[var(--text-primary)] uppercase tracking-wide">{groupName}</span>
                                         </div>
                                         {groupThreads.map(thread => renderThreadItem(thread))}
                                     </div>

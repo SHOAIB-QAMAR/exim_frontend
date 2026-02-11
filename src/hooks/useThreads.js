@@ -15,35 +15,24 @@ import ChatService from '../services/chat.service';
  */
 export const useThreads = () => {
     const [threads, setThreads] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
 
     const fetchThreads = useCallback(async () => {
+        setIsLoading(true);
         try {
             const data = await ChatService.getAllThreads();
             setThreads(data);
         } catch (err) {
             console.error('[useThreads.fetchThreads] Error:', err.message);
+        } finally {
+            setIsLoading(false);
         }
     }, []);
 
-    // Fetch threads on mount using proper async IIFE pattern
+    // Fetch threads on mount
     useEffect(() => {
-        let isMounted = true;
-
-        (async () => {
-            try {
-                const data = await ChatService.getAllThreads();
-                if (isMounted) {
-                    setThreads(data);
-                }
-            } catch (err) {
-                console.error('[useThreads] Initial fetch error:', err.message);
-            }
-        })();
-
-        return () => {
-            isMounted = false;
-        };
-    }, []);
+        fetchThreads();
+    }, [fetchThreads]);
 
     const deleteThread = async (threadId) => {
         try {
@@ -57,5 +46,5 @@ export const useThreads = () => {
         }
     };
 
-    return { threads, setThreads, fetchThreads, deleteThread };
+    return { threads, setThreads, fetchThreads, deleteThread, isLoading };
 };
