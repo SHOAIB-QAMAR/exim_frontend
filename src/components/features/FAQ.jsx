@@ -153,4 +153,3 @@ const FAQ = ({ onFeatureClick, onClose }) => {
 
 
 export default FAQ;
-''

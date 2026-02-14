@@ -70,24 +70,27 @@ const Layout = () => {
         activeSessions,
         setActiveSessions,
         activeSessionId,
-        activeSession,
-        updateActiveSession,
+        activeSession, // The currently visible chat session object
+        updateActiveSession, // Function to update state of current session (e.g. typing input)
         handleNewChat,
-        handleTabClick,
+        handleTabClick, // Handles switching between chat tabs
         handleTabClose,
         handleLoadChat
     } = useChatSessions(threads, closeMobileSidebar);
 
     // ==================== SCROLL MANAGEMENT ====================
+    // We use a sticky scroll mechanism: if the user is at the bottom, stay at the bottom.
+    // If they scroll up, don't force them down when new messages arrive.
     const chatContainerRef = useRef(null);
     const messagesEndRef = useRef(null);
     const prevSessionIdRef = useRef(activeSessionId);
     const lastScrollTimeRef = useRef(0);
-    const isStickyRef = useRef(true);
+    const isStickyRef = useRef(true); // Tracks if we should auto-scroll to bottom
 
     const handleScroll = () => {
         if (!chatContainerRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+        // 10px threshold to determine if user is "at the bottom"
         isStickyRef.current = scrollHeight - scrollTop - clientHeight <= 10;
     };
 
@@ -109,6 +112,8 @@ const Layout = () => {
     };
 
     // ==================== WEBSOCKET ====================
+    // useWebSocket hook handles the actual connection and message reception.
+    // It provides the 'sendMessage' function which we use in handleSend.
     const { sendMessage } = useWebSocket(activeSessions, setActiveSessions, activeSessionId, scrollToBottom);
 
     // Check if any tab is currently loading (disables send on all tabs)
@@ -147,7 +152,14 @@ const Layout = () => {
         updateActiveSession({ messages: newMessages });
     };
 
-    /** Sends a chat message with optional image */
+    /** 
+     * Handles sending a chat message.
+     * 1. Validates input
+     * 2. Uploads image if present
+     * 3. Optimistically updates UI with user message and "Thinking..." state
+     * 4. Sends payload via WebSocket
+     * 5. Handles immediate failures (e.g. network down)
+     */
     const handleSend = async (text) => {
         try {
             if (!text.trim() && !activeSession.selectedFile) return;

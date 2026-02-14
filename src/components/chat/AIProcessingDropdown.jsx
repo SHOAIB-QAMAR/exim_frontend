@@ -22,7 +22,6 @@ const AIProcessingDropdown = ({ steps = [], metrics = null, isComplete = false }
     // Auto-collapse when processing completes
     useEffect(() => {
         if (isComplete) {
-            // eslint-disable-next-line
             setIsExpanded(false);
         } else {
             setIsExpanded(true);
@@ -33,8 +32,6 @@ const AIProcessingDropdown = ({ steps = [], metrics = null, isComplete = false }
     const hasSteps = steps && steps.length > 0;
     const hasMetrics = metrics && Object.keys(metrics).length > 0;
     if (!hasSteps && !hasMetrics) return null;
-
-
 
     // Metric items with icons matching the screenshot
     const metricItems = [

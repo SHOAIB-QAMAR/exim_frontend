@@ -1,22 +1,7 @@
-/**
- * @fileoverview Message Content Components
- * 
- * Renders chat message content with comprehensive Markdown support.
- * Includes typing animation effect with robust edge case handling.
- * Supports: bold, italic, strikethrough, task lists, code, tables, links, blockquotes, etc.
- */
-
 import { useState, useEffect, useMemo, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
-/**
- * Renders markdown content with custom styling
- * 
- * @param {Object} props - Component props
- * @param {string} props.content - Markdown content to render
- * @param {Function} props.onLinkClick - Callback when a link is clicked
- */
 const MessageContent = ({ content, onLinkClick }) => {
 
     const components = useMemo(() => ({
@@ -175,34 +160,7 @@ const MessageContent = ({ content, onLinkClick }) => {
     );
 };
 
-/**
- * Typing animation component for new messages
- * 
- * Renders text with a streaming/typing animation effect by gradually revealing characters.
- * Uses requestAnimationFrame for smooth 60fps animation.
- * Auto-closes incomplete Markdown tags during animation to prevent visual glitches.
- * 
- * IMPORTANT: Wrap onComplete and onTyping with useCallback in parent to prevent
- * unnecessary animation restarts:
- * 
- * const handleComplete = useCallback(() => { ... }, []);
- * const handleTyping = useCallback(() => { ... }, []);
- * <TypingMessage onComplete={handleComplete} onTyping={handleTyping} />
- * 
- * @param {Object} props - Component props
- * @param {string} props.content - Full message text to animate
- * @param {Function} [props.onComplete] - Called when typing animation finishes
- * @param {Function} [props.onTyping] - Called during typing for scroll effects
- * @param {Function} [props.onLinkClick] - Callback for link clicks in the message
- * 
- * @example
- * <TypingMessage 
- *   content="Hello **world**!"
- *   onComplete={() => console.log('Done!')}
- *   onTyping={() => scrollToBottom()}
- *   onLinkClick={(url) => navigate(url)}
- * />
- */
+
 export const TypingMessage = ({ content, onComplete, onTyping, onLinkClick }) => {
     const [displayedContent, setDisplayedContent] = useState("");
     const indexRef = useRef(0);
@@ -215,13 +173,6 @@ export const TypingMessage = ({ content, onComplete, onTyping, onLinkClick }) =>
     // - Typical range: 1-3
     const CHARS_PER_FRAME = 2;
 
-    /**
-     * Comprehensive helper to auto-close unclosed Markdown tags during streaming
-     * Handles: bold, italic, strikethrough, code blocks, inline code, links, images
-     * 
-     * @param {string} text - Potentially incomplete markdown text
-     * @returns {string} - Fixed markdown with closed tags
-     */
     const ensureClosedMarkdown = (text) => {
         if (!text) return text;
         let fixedText = text;

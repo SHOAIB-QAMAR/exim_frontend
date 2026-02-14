@@ -8,14 +8,10 @@ const ContextPanel = ({ isOpen, onClose, data }) => {
 
     useEffect(() => {
         if (isOpen) {
-            // eslint-disable-next-line
             setRenderParams({ show: true, animate: true });
-            // eslint-disable-next-line
             setIframeLoading(true); // Reset loading on open
         } else {
-            // eslint-disable-next-line
             setRenderParams(prev => ({ ...prev, animate: false }));
-            // eslint-disable-next-line
             const timer = setTimeout(() => setRenderParams({ show: false, animate: false }), 400); // Match refined duration
             return () => clearTimeout(timer);
         }
@@ -24,7 +20,6 @@ const ContextPanel = ({ isOpen, onClose, data }) => {
     // Reset loading when data changes
     useEffect(() => {
         if (data?.type === 'link') {
-            // eslint-disable-next-line
             setIframeLoading(true);
         }
     }, [data]);

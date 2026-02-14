@@ -1,18 +1,6 @@
-/**
- * @fileoverview Threads Management Hook
- * 
- * Manages chat thread data fetched from the backend.
- * Provides CRUD operations for threads.
- */
-
 import { useState, useEffect, useCallback } from 'react';
 import ChatService from '../services/chat.service';
 
-/**
- * Custom hook for managing chat threads
- * 
- * @returns {Object} Threads state and operations
- */
 export const useThreads = () => {
     const [threads, setThreads] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -29,7 +17,6 @@ export const useThreads = () => {
         }
     }, []);
 
-    // Fetch threads on mount
     useEffect(() => {
         fetchThreads();
     }, [fetchThreads]);

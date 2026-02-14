@@ -1,22 +1,5 @@
-/**
- * @fileoverview WebSocket Hook for Chat Communication
- * 
- * Manages WebSocket connections for chat threads using the SharedWebSocketService.
- * Handles message sending, receiving, and real-time streaming updates.
- */
-
 import { useEffect, useRef, useCallback } from 'react';
 import webSocketService from '../services/SharedWebSocketService';
-
-/**
- * Custom hook for WebSocket-based chat communication
- * 
- * @param {Array} activeSessions - Active chat sessions
- * @param {Function} setActiveSessions - State updater for sessions
- * @param {string} activeSessionId - Currently visible session ID
- * @param {Function} scrollToBottom - Callback to scroll chat view
- * @returns {{ sendMessage: Function }} WebSocket send function
- */
 
 export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId, scrollToBottom) => {
     const connectedThreadsRef = useRef(new Set());
@@ -26,8 +9,14 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
      * Handles incoming WebSocket messages (streaming chunks or complete messages)
      */
     const handleMessage = useCallback((threadId, data) => {
+        // DEBUG LOGGING
+        console.log('[useWebSocket] handleMessage received:', { threadId, type: data?.type, data });
+
         try {
-            if (!threadId) return;
+            if (!threadId) {
+                console.warn('[useWebSocket] No threadId in message');
+                return;
+            }
 
             setActiveSessions(prev => prev.map(s => {
                 if (s.id !== threadId) return s;
@@ -39,8 +28,11 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                 // Initialize thinking/metrics if not present
                 const thinkingSteps = s.thinkingSteps || [];
 
+                console.log(`[useWebSocket] Processing for session ${s.id}. Current state: isThinking=${s.isThinking}, msgCount=${messages.length}`);
+
                 // Handle legacy format (backward compatibility)
                 if (data.chunk || data.done || data.reply) {
+                    console.log('[useWebSocket] Handling LEGACY format');
                     const isStreaming = data.done !== undefined;
                     const isDone = data.done === true;
 
@@ -75,6 +67,7 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                 }
 
                 // Handle Advanced Streaming Format (type: 'status' | 'message_chunk' | etc.)
+                console.log(`[useWebSocket] Handling Advanced format: ${data.type}`);
                 switch (data.type) {
                     case 'status': // Status updates with in-progress/completed
                         {
@@ -153,6 +146,7 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
 
                     case 'message_start':
                         // Prepare for text streaming - maybe mark thinking as done?
+                        console.log('[useWebSocket] message_start received. Switching isThinking to false.');
                         return { ...s, isThinking: false }; // Switch to text mode
 
                     case 'message_chunk': {
@@ -161,6 +155,7 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                         if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
                             messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + content };
                         } else {
+                            console.log('[useWebSocket] Starting new assistant message bubble');
                             messages.push({
                                 role: 'assistant',
                                 content: content,
@@ -192,6 +187,7 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                         return { ...s, isThinking: false, messages };
 
                     default:
+                        console.warn('[useWebSocket] Unknown message type:', data.type);
                         return s;
                 }
 
@@ -247,12 +243,7 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
         };
     }, []);
 
-    /**
-     * Sends a message via WebSocket
-     * @param {string} threadId - Target thread ID
-     * @param {string} text - Message content (text or JSON string)
-     * @returns {boolean} Success status
-     */
+
     const sendMessage = useCallback((threadId, text) => {
         try {
             if (!threadId) return false;

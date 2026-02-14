@@ -1,4 +1,5 @@
 import React, { useRef, useMemo } from 'react';
+import Tooltip from '../common/Tooltip';
 import useSpeechToText from '../../hooks/useSpeechToText';
 import { FaPaperclip, FaMicrophone, FaStop, FaPaperPlane, FaXmark } from "react-icons/fa6";
 
@@ -37,7 +38,7 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
         if (disabled) return; // Prevent sending if another tab is loading
         if (inputValue.trim() || selectedFile) {
             onSend(inputValue);
-            // Reset height
+            // Reset height to default single row after sending
             if (textareaRef.current) {
                 textareaRef.current.style.height = 'auto';
             }
@@ -53,7 +54,9 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
 
     const handleInput = (e) => {
         setInputValue(e.target.value);
-        // Auto-resize
+        // Auto-resize logic:
+        // 1. Reset to 'auto' to correctly calculate new scrollHeight (shrink if needed)
+        // 2. Set height to scrollHeight to expand to fit content
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
             textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
@@ -63,13 +66,13 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
     const handleFileChange = (e) => {
         const file = e.target.files?.[0];
         if (file) {
-            // Validate file type
+            // Validate file type: Only images are allowed
             const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
             if (!validTypes.includes(file.type)) {
                 alert('Please select a valid image file (JPEG, PNG, GIF, or WebP)');
                 return;
             }
-            // Validate file size (max 10MB)
+            // Validate file size: Max 10MB
             if (file.size > 10 * 1024 * 1024) {
                 alert('Image size must be less than 10MB');
                 return;
@@ -180,19 +183,24 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
                                 </button>
                             </div>
 
-                            <button
-                                type="button"
-                                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${disabled
-                                    ? 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed opacity-50'
-                                    : (inputValue.trim() || selectedFile)
-                                        ? 'bg-[var(--brand-primary)] text-white shadow-md hover:shadow-lg active:scale-95 cursor-pointer'
-                                        : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-not-allowed'}`}
-                                onClick={handleSend}
-                                disabled={disabled || (!inputValue.trim() && !selectedFile)}
-                                title={disabled ? "Wait for response to complete" : "Send message"}
+                            <Tooltip
+                                content="Response loading..."
+                                position="bottom"
+                                disabled={!disabled} // Only show tooltip when button is disabled (loading)
                             >
-                                <FaPaperPlane className="text-sm ml-0.5" />
-                            </button>
+                                <button
+                                    type="button"
+                                    className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${disabled
+                                        ? 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed opacity-50'
+                                        : (inputValue.trim() || selectedFile)
+                                            ? 'bg-[var(--brand-primary)] text-white shadow-md hover:shadow-lg active:scale-95 cursor-pointer'
+                                            : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-not-allowed'}`}
+                                    onClick={handleSend}
+                                    disabled={disabled || (!inputValue.trim() && !selectedFile)}
+                                >
+                                    <FaPaperPlane className="text-sm ml-0.5" />
+                                </button>
+                            </Tooltip>
                         </div>
                     </div>
                 </div>

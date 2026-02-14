@@ -1,19 +1,6 @@
 import React, { useEffect } from 'react';
 import { FaXmark, FaComments, FaSpinner, FaPlus, FaShip } from "react-icons/fa6";
 
-/**
- * ThreadSwitcher - A Chrome-style tab switcher for switching between active chat threads.
- * Displays chats in a grid of cards similar to Chrome's mobile tab view.
- * 
- * @param {boolean} isOpen - Whether the switcher is open
- * @param {function} onClose - Callback to close the switcher
- * @param {Array} sessions - Array of active chat sessions
- * @param {string} activeSessionId - ID of the currently active session
- * @param {function} onSelectSession - Callback when a session is selected
- * @param {function} onCloseSession - Callback to close a session
- * @param {function} onNewChat - Callback to create a new chat
- */
-
 const ThreadSwitcher = ({
     isOpen,
     onClose,

@@ -1,13 +1,6 @@
 import React, { useState } from 'react';
 import { FaBolt, FaChevronDown, FaChevronRight } from 'react-icons/fa';
 
-/**
- * TimingMetrics Component
- * Displays performance metrics for the AI response in a collapsible dropdown.
- * 
- * @param {Object} props
- * @param {Object} props.metrics - Metrics object { analysis_time, etc. }
- */
 const TimingMetrics = ({ metrics }) => {
     const [isExpanded, setIsExpanded] = useState(false);
 

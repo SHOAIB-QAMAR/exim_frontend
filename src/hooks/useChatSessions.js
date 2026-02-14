@@ -1,20 +1,10 @@
-/**
- * @fileoverview Chat Sessions Management Hook
- * 
- * Manages multiple active chat sessions with tab-like functionality.
- * Supports LRU eviction when max session limit is reached.
- */
-
 import { useState } from 'react';
 import { v1 as uuidv1 } from 'uuid';
 import ChatService from '../services/chat.service';
 
 /** Maximum concurrent active sessions before LRU eviction */
-const MAX_ACTIVE_SESSIONS = 7;
+const MAX_ACTIVE_SESSIONS = 6;
 
-/**
- * Logs errors with detailed context for debugging
- */
 const logError = (hookName, method, error, context = {}) => {
     console.error(`[${hookName}.${method}] Error:`, {
         file: 'useChatSessions.js',

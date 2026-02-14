@@ -1,5 +1,6 @@
 import React from 'react';
 import { FaPlus, FaXmark } from "react-icons/fa6";
+import Tooltip from '../common/Tooltip';
 
 const ChatTabs = ({ tabs, activeTabId, onTabClick, onTabClose, onNewTab }) => {
     return (
@@ -50,19 +51,20 @@ const ChatTabs = ({ tabs, activeTabId, onTabClick, onTabClose, onNewTab }) => {
                 })}
 
                 {/* New Tab Button */}
-                <button
-                    className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors ml-1 mb-0.5"
-                    onClick={() => {
-                        try {
-                            onNewTab();
-                        } catch (err) {
-                            console.error("Error creating new tab:", err);
-                        }
-                    }}
-                    title="New Tab"
-                >
-                    <FaPlus className="text-sm" />
-                </button>
+                <Tooltip content="New Chat" position="right">
+                    <button
+                        className="flex items-center justify-center w-8 h-8 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors ml-1 mb-0.5"
+                        onClick={() => {
+                            try {
+                                onNewTab();
+                            } catch (err) {
+                                console.error("Error creating new tab:", err);
+                            }
+                        }}
+                    >
+                        <FaPlus className="text-sm" />
+                    </button>
+                </Tooltip>
             </div>
         </div>
     );

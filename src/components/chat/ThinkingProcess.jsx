@@ -1,14 +1,6 @@
 import React, { useState } from 'react';
 import { FaChevronDown, FaCheck, FaSpinner, FaTools, FaSearch, FaLightbulb } from 'react-icons/fa';
 
-/**
- * ThinkingProcess Component
- * Displays the step-by-step thinking process of the AI.
- * 
- * @param {Object} props
- * @param {Array} props.steps - Array of thinking steps { message, status, type }
- * @param {boolean} props.isComplete - Whether the entire process is complete
- */
 const ThinkingProcess = ({ steps = [], isComplete = false }) => {
     const [isExpanded, setIsExpanded] = useState(true);
 

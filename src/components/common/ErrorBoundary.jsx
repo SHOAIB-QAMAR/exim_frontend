@@ -1,11 +1,5 @@
 import React from 'react';
 
-/**
- * Global Error Boundary
- * 
- * Catches JavaScript errors anywhere in the child component tree,
- * logs those errors, and displays a fallback UI instead of the component tree that crashed.
- */
 class GlobalErrorBoundary extends React.Component {
     constructor(props) {
         super(props);

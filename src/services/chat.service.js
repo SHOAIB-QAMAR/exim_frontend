@@ -1,18 +1,10 @@
 import API_CONFIG from './api.config';
 
-/**
- * ChatService
- * Handles all API calls for chat functionality.
- * Enhanced with comprehensive error handling for deployment debugging.
- */
+// ChatService Handles all API calls for chat functionality.
+// Enhanced with comprehensive error handling for deployment debugging.
+
 class ChatService {
-    /**
-     * Helper to create detailed error logs
-     * @param {string} method - Method name where error occurred
-     * @param {string} operation - Specific operation being performed
-     * @param {Error} error - The error object
-     * @param {Object} context - Additional context data
-     */
+    
     _logError(method, operation, error, context = {}) {
         const errorInfo = {
             file: 'chat.service.js',
@@ -25,7 +17,6 @@ class ChatService {
             timestamp: new Date().toISOString()
         };
         console.error(`[ChatService.${method}] Error during ${operation}:`, errorInfo);
-        return errorInfo;
     }
 
     async getAllThreads() {
@@ -128,11 +119,6 @@ class ChatService {
         }
     }
 
-    /**
-     * Upload an image file to the server
-     * @param {File} file - The image file to upload
-     * @returns {Promise<{url: string, path: string}>} The uploaded image URL and path
-     */
     async uploadImage(file) {
         const method = 'uploadImage';
         try {

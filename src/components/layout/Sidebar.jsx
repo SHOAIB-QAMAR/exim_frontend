@@ -32,7 +32,7 @@ const ChatItem = ({ title, firstMessage }) => {
         >
             <div
                 ref={textRef}
-                className="text-sm ml-2 font-medium text-[var(--text-primary)] truncate max-w-[180px]"
+                className="text-sm font-medium text-[var(--text-primary)] truncate max-w-[190px]"
             >
                 {title}
             </div>
@@ -56,7 +56,7 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
         setActiveMenu(null);
     };
 
-    const [showHistory, setShowHistory] = useState(true);
+    const [showHistory, setShowHistory] = useState(false);
 
     // Group history threads by date - Memoized
     const groupedHistory = React.useMemo(() => {
@@ -102,7 +102,7 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
     const renderThreadItem = (thread) => (
         <div
             key={thread.threadId}
-            className={`chat-item flex items-center gap-1 p-2  rounded-lg cursor-pointer hover:bg-[var(--bg-tertiary)] transition-all group relative ${currThreadId === thread.threadId ? 'bg-[var(--bg-tertiary)] border-l-2 border-[var(--brand-primary)]' : 'border-l-2 border-transparent'}`}
+            className={`chat-item flex items-center gap-2 p-1.5  rounded-lg cursor-pointer hover:bg-[var(--bg-tertiary)] transition-all group relative ${currThreadId === thread.threadId ? 'bg-[var(--bg-tertiary)]' : ''}`}
             onClick={() => onLoadChat(thread.threadId)}
         >
             <ChatItem title={thread.title || "New Chat"} firstMessage={thread.messages?.[0]?.content} />
@@ -223,10 +223,10 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
                             position="right"
                         >
                             <button
-                                className={`flex items-center gap-3 p-3 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] transition-colors w-full ${isExpanded ? '' : 'justify-center'}`}
+                                className={`icon-item flex items-center justify-center gap-2 p-2 text-[var(--text-secondary)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 ${isExpanded ? 'w-full border border-[var(--border-color)] bg-[var(--bg-tertiary)] rounded-full hover:bg-[var(--bg-secondary)] hover:border-[var(--border-color)]' : 'w-10 h-10 justify-center mx-auto rounded-md hover:bg-[var(--bg-tertiary)]'}`}
                                 onClick={onSearchClick}
                             >
-                                <FaMagnifyingGlass className="text-lg" />
+                                <FaMagnifyingGlass className={`${isExpanded ? 'text-xs' : 'text-lg '}`} />
                                 <span className={`text-sm font-medium whitespace-nowrap transition-opacity duration-200 ${isExpanded ? 'block opacity-100' : 'hidden opacity-0'}`}>Search Chats</span>
                             </button>
                         </Tooltip>
@@ -234,7 +234,7 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
                 </div>
 
                 {/* Chat History Section - Independent Scroll */}
-                <div className="flex-1 overflow-y-auto min-h-0 px-2 custom-scrollbar mb-2 relative">
+                <div className="flex-1 overflow-y-auto min-h-0 pl-2 custom-scrollbar mb-2 relative">
                     {/* Chat History Header - Toggleable */}
                     <div className={`chat-history-section ${!isExpanded ? 'hidden' : ''} sticky top-0 bg-[var(--bg-sidebar)] z-10 pb-2 pt-1`}>
                         <div
@@ -271,7 +271,7 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
                                 groupedHistory.map(([groupName, groupThreads]) => (
                                     <div key={groupName} className="mb-4">
                                         <div className="chat-history-header px-2 mb-1">
-                                            <span className="text-xs font-semibold text-[var(--text-primary)] uppercase tracking-wide">{groupName}</span>
+                                            <span className="text-xs font-semibold text-[var(--text-secondary)] tracking-wide">{groupName}</span>
                                         </div>
                                         {groupThreads.map(thread => renderThreadItem(thread))}
                                     </div>
@@ -289,11 +289,11 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
                         position="right"
                     >
                         <button
-                            className={`icon-item flex items-center gap-3 p-3 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors w-full ${isExpanded ? '' : 'justify-center'}`}
+                            className={`icon-item flex items-center gap-2 p-2 rounded-md hover:bg-[var(--bg-tertiary)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 ${isExpanded ? 'w-full' : 'w-10 h-10 justify-center mx-auto'}`}
                             onClick={toggleTheme}
                         >
                             {theme === 'dark' ? <FaSun className="text-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-110 transition-all" /> : <FaMoon className="text-lg text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:scale-110 transition-all" />}
-                            <span className={`label text-[14px] font-medium whitespace-nowrap transition-opacity duration-200 text-[var(--text-secondary)] ${isExpanded ? 'block opacity-100' : 'hidden opacity-0'}`}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+                            <span className={`label text-sm font-medium whitespace-nowrap transition-opacity duration-200 text-[var(--text-secondary)] ${isExpanded ? 'block opacity-100' : 'hidden opacity-0'}`}>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
                         </button>
                     </Tooltip>
 
@@ -303,7 +303,7 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
                         position="right"
                     >
                         <button
-                            className={`icon-item flex items-center gap-3 p-3 rounded-md hover:bg-[var(--bg-tertiary)] transition-colors w-full ${isExpanded ? '' : 'justify-center'} ${showFAQ ? 'bg-[var(--bg-tertiary)] text-[var(--brand-primary)]' : 'text-[var(--text-secondary)]'}`}
+                            className={`icon-item flex items-center gap-2 p-2 rounded-md hover:bg-[var(--bg-tertiary)] transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md active:scale-95 ${isExpanded ? 'w-full' : 'w-10 h-10 justify-center mx-auto'} ${showFAQ ? 'bg-[var(--bg-tertiary)] text-[var(--brand-primary)]' : 'text-[var(--text-secondary)]'}`}
                             onClick={() => {
                                 if (isOpenMobile) {
                                     closeMobileSidebar();
@@ -312,7 +312,7 @@ const Sidebar = ({ collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar, o
                             }}
                         >
                             <FaQuestionCircle className="text-lg hover:scale-105 transition-all" />
-                            <span className={`label text-[14px] font-medium whitespace-nowrap transition-opacity duration-200 ${isExpanded ? 'block opacity-100' : 'hidden opacity-0'}`}>FAQ</span>
+                            <span className={`label text-sm font-medium whitespace-nowrap transition-opacity duration-200 ${isExpanded ? 'block opacity-100' : 'hidden opacity-0'}`}>FAQ</span>
                         </button>
                     </Tooltip>
                 </div>

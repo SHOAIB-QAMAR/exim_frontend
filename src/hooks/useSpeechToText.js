@@ -1,10 +1,3 @@
-/**
- * @fileoverview Speech to Text Hook
- * 
- * Provides speech recognition functionality using the Web Speech API.
- * Supports continuous listening and interim results.
- */
-
 import { useState, useRef, useCallback, useMemo } from 'react';
 
 /**
@@ -15,12 +8,12 @@ import { useState, useRef, useCallback, useMemo } from 'react';
  * @returns {Object} Speech recognition state and controls
  */
 const useSpeechToText = (options = {}) => {
-    const [isListening, setIsListening] = useState(false);
-    const [transcript, setTranscript] = useState("");
-    const [interimTranscript, setInterimTranscript] = useState("");
+    const [isListening, setIsListening] = useState(false); // Tracks if the microphone is currently active
+    const [transcript, setTranscript] = useState(""); // Finalized text from the speech engine
+    const [interimTranscript, setInterimTranscript] = useState(""); // Temporary text while speaking (gray text often)
     const [error, setError] = useState(null);
-    const recognitionRef = useRef(null);
-    const isInitializedRef = useRef(false);
+    const recognitionRef = useRef(null); // Stores the SpeechRecognition instance
+    const isInitializedRef = useRef(false); // Prevents double initialization in Strict Mode
 
     // Check browser support (computed once)
     const isSupported = useMemo(() => {
@@ -28,6 +21,7 @@ const useSpeechToText = (options = {}) => {
     }, []);
 
     // Initialize recognition on first use
+    // We used a lazy initialization approach to avoid asking for permissions until actually needed
     const initRecognition = useCallback(() => {
         if (isInitializedRef.current || !isSupported) return;
 
