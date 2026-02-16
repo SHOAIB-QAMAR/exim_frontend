@@ -4,9 +4,10 @@
 @import "tailwindcss";
 
 :root {
-    /* --- EximGPT Design System --- */
+    /* -- EximGPT Design System -- */
 
     /* Brand Colors */
+    --shoaib--:var(--accent-cyan)
     --brand-primary: #C8202F;
     --brand-highlight: #FA5A5A;
     --brand-success: #28A745;
