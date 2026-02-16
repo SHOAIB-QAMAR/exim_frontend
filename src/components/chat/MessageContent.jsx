@@ -4,23 +4,23 @@ import remarkGfm from 'remark-gfm';
 
 const MessageContent = ({ content, onLinkClick }) => {
 
+    console.log("-------Content------", content);
     const components = useMemo(() => ({
-        // Headings (h1-h6)
-        h1: (props) => <h1 className="text-2xl font-bold mt-5 mb-3 text-[var(--text-primary)]" {...props} />,
-        h2: (props) => <h2 className="text-xl font-bold mt-4 mb-2 text-[var(--text-primary)]" {...props} />,
-        h3: (props) => <h3 className="text-lg font-bold mt-3 mb-2 text-[var(--text-primary)]" {...props} />,
-        h4: (props) => <h4 className="text-base font-bold mt-3 mb-1 text-[var(--text-primary)]" {...props} />,
+        // Headings (h1-h6) - Standard formatting
+        h1: (props) => <h1 className="text-2xl font-bold mt-6 mb-3 text-[var(--text-primary)]" {...props} />,
+        h2: (props) => <h2 className="text-xl font-bold mt-5 mb-2.5 text-[var(--text-primary)]" {...props} />,
+        h3: (props) => <h3 className="text-lg font-bold mt-4 mb-2 text-[var(--text-primary)]" {...props} />,
+        h4: (props) => <h4 className="text-base font-bold mt-3 mb-1.5 text-[var(--text-primary)]" {...props} />,
         h5: (props) => <h5 className="text-sm font-bold mt-2 mb-1 text-[var(--text-primary)]" {...props} />,
         h6: (props) => <h6 className="text-xs font-bold mt-2 mb-1 text-[var(--text-secondary)]" {...props} />,
 
-        // Lists - enhanced with task list support
-        ul: (props) => <ul className="list-disc pl-6 my-3 space-y-1.5 marker:text-[var(--text-secondary)]" {...props} />,
-        ol: (props) => <ol className="list-decimal pl-6 my-3 space-y-1.5 marker:text-[var(--text-secondary)]" {...props} />,
+        // Lists - Standard spacing
+        ul: (props) => <ul className="list-disc pl-6 my-2 space-y-1 marker:text-[var(--text-secondary)]" {...props} />,
+        ol: (props) => <ol className="list-decimal pl-6 my-2 space-y-1 marker:text-[var(--text-secondary)]" {...props} />,
         li: ({ children, ...props }) => {
-            // Check if this is a task list item (contains checkbox input)
             const isTaskItem = Array.isArray(children) && children[0]?.type === 'input';
             return (
-                <li className={`pl-1 ${isTaskItem ? 'list-none' : ''}`} {...props}>
+                <li className={`pl-1 leading-relaxed ${isTaskItem ? 'list-none' : ''}`} {...props}>
                     {isTaskItem ? (
                         <div className="flex items-start gap-2">
                             {children[0]}
@@ -49,9 +49,8 @@ const MessageContent = ({ content, onLinkClick }) => {
             return <input {...props} />;
         },
 
-        // Links - improved with edge case handling
+        // Links
         a: ({ href, children, ...rest }) => {
-            // Handle mailto, tel, and relative links
             const isMailto = href?.startsWith('mailto:');
             const isTel = href?.startsWith('tel:');
             const isExternal = href?.startsWith('http://') || href?.startsWith('https://');
@@ -75,7 +74,7 @@ const MessageContent = ({ content, onLinkClick }) => {
             );
         },
 
-        // Code blocks - improved handling with better edge cases
+        // Code blocks
         code: ({ className, children, inline, ...rest }) => {
             const match = /language-(\w+)/.exec(className || '');
             const isBlock = Boolean(match) || className?.includes('language-');
@@ -104,18 +103,18 @@ const MessageContent = ({ content, onLinkClick }) => {
             <blockquote className="border-l-4 border-[var(--brand-primary)] pl-4 py-2 my-3 text-[var(--text-secondary)] italic bg-[var(--bg-tertiary)]/30 rounded-r" {...props} />
         ),
 
-        // Strikethrough (via remark-gfm del tag)
+        // Strikethrough
         del: (props) => (
             <del className="line-through opacity-70" {...props} />
         ),
 
-        // Emphasis/Italic
+        // Emphasis
         em: (props) => <em className="italic" {...props} />,
 
-        // Strong/Bold (ensure consistency)
+        // Strong
         strong: (props) => <strong className="font-semibold" {...props} />,
 
-        // Tables - enhanced with better styling
+        // Tables
         table: ({ children, ...rest }) => (
             <div className="overflow-x-auto my-4 rounded-lg border border-[var(--border-color)]">
                 <table className="w-full text-sm" {...rest}>{children}</table>
@@ -127,8 +126,8 @@ const MessageContent = ({ content, onLinkClick }) => {
         th: (props) => <th className="px-5 py-3 text-left font-semibold" {...props} />,
         td: (props) => <td className="px-5 py-3 align-top" {...props} />,
 
-        // Paragraphs - handle line breaks and spacing correctly
-        p: (props) => <p className="mb-3 last:mb-0 whitespace-pre-wrap" {...props} />,
+        // Paragraphs - Standard spacing
+        p: (props) => <p className="mb-4 last:mb-0 whitespace-pre-wrap" {...props} />,
 
         // Hard line breaks
         br: () => <br />,
@@ -136,7 +135,7 @@ const MessageContent = ({ content, onLinkClick }) => {
         // Horizontal Rule
         hr: () => <hr className="my-6 border-[var(--border-color)]" />,
 
-        // Images with alt text support
+        // Images
         img: ({ src, alt, title, ...rest }) => (
             <div className="my-4 rounded-lg overflow-hidden">
                 <img

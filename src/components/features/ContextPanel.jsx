@@ -38,7 +38,7 @@ const ContextPanel = ({ isOpen, onClose, data }) => {
             {/* Panel Container */}
             <div
                 className={`
-                    z-50 flex flex-col bg-[var(--bg-card)]/95 backdrop-blur-2xl overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)]
+                    z-50 flex flex-col bg-[var(--bg-card)]/95 backdrop-blur-2xl overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] md:border-l md:border-[var(--border-color)]
                     
                     /* Mobile: Fixed overlay, full width, slide-in */
                     fixed top-0 right-0 h-full w-full

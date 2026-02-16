@@ -191,6 +191,8 @@ const Layout = () => {
                 messages: [...s.messages, userMsg],
                 inputValue: "",
                 isThinking: true,
+                thinkingSteps: [],
+                metrics: null,
                 title: newTitle,
                 selectedFile: null
             } : s));

@@ -41,6 +41,7 @@ class ChatService {
 
             const data = await response.json();
             console.log(`[ChatService.${method}] Successfully fetched ${data?.length || 0} threads`);
+
             return data;
         } catch (error) {
             this._logError(method, 'getAllThreads', error, {
