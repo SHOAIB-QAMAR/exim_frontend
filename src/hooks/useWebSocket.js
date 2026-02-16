@@ -152,6 +152,7 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                     case 'message_chunk': {
                         // Text content
                         const content = data.content;
+
                         if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
                             messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + content };
                         } else {

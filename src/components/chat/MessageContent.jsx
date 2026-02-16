@@ -4,52 +4,8 @@ import remarkGfm from 'remark-gfm';
 
 const MessageContent = ({ content, onLinkClick }) => {
 
-    console.log("-------Content------", content);
     const components = useMemo(() => ({
-        // Headings (h1-h6) - Standard formatting
-        h1: (props) => <h1 className="text-2xl font-bold mt-6 mb-3 text-[var(--text-primary)]" {...props} />,
-        h2: (props) => <h2 className="text-xl font-bold mt-5 mb-2.5 text-[var(--text-primary)]" {...props} />,
-        h3: (props) => <h3 className="text-lg font-bold mt-4 mb-2 text-[var(--text-primary)]" {...props} />,
-        h4: (props) => <h4 className="text-base font-bold mt-3 mb-1.5 text-[var(--text-primary)]" {...props} />,
-        h5: (props) => <h5 className="text-sm font-bold mt-2 mb-1 text-[var(--text-primary)]" {...props} />,
-        h6: (props) => <h6 className="text-xs font-bold mt-2 mb-1 text-[var(--text-secondary)]" {...props} />,
 
-        // Lists - Standard spacing
-        ul: (props) => <ul className="list-disc pl-6 my-2 space-y-1 marker:text-[var(--text-secondary)]" {...props} />,
-        ol: (props) => <ol className="list-decimal pl-6 my-2 space-y-1 marker:text-[var(--text-secondary)]" {...props} />,
-        li: ({ children, ...props }) => {
-            const isTaskItem = Array.isArray(children) && children[0]?.type === 'input';
-            return (
-                <li className={`pl-1 leading-relaxed ${isTaskItem ? 'list-none' : ''}`} {...props}>
-                    {isTaskItem ? (
-                        <div className="flex items-start gap-2">
-                            {children[0]}
-                            <span className="flex-1">{children.slice(1)}</span>
-                        </div>
-                    ) : (
-                        children
-                    )}
-                </li>
-            );
-        },
-
-        // Task list checkbox input
-        input: (props) => {
-            if (props.type === 'checkbox') {
-                return (
-                    <input
-                        type="checkbox"
-                        checked={props.checked || false}
-                        disabled
-                        className="w-4 h-4 mt-1 accent-[var(--brand-primary)] cursor-not-allowed flex-shrink-0"
-                        aria-label="Task list item"
-                    />
-                );
-            }
-            return <input {...props} />;
-        },
-
-        // Links
         a: ({ href, children, ...rest }) => {
             const isMailto = href?.startsWith('mailto:');
             const isTel = href?.startsWith('tel:');
@@ -58,7 +14,6 @@ const MessageContent = ({ content, onLinkClick }) => {
             return (
                 <a
                     href={href}
-                    className="text-[var(--brand-primary)] hover:underline font-medium break-all cursor-pointer transition-colors duration-150 hover:opacity-80"
                     target={isExternal ? '_blank' : undefined}
                     rel={isExternal ? 'noopener noreferrer' : undefined}
                     onClick={(e) => {
@@ -74,87 +29,39 @@ const MessageContent = ({ content, onLinkClick }) => {
             );
         },
 
-        // Code blocks
-        code: ({ className, children, inline, ...rest }) => {
-            const match = /language-(\w+)/.exec(className || '');
-            const isBlock = Boolean(match) || className?.includes('language-');
-            const language = match?.[1] || '';
-
-            return isBlock ? (
-                <div className="relative my-4 rounded-lg overflow-hidden bg-[var(--bg-tertiary)] border border-[var(--border-color)]">
-                    <div className="flex items-center justify-between px-4 py-2 bg-[var(--bg-secondary)] border-b border-[var(--border-color)] text-xs text-[var(--text-secondary)] font-mono uppercase tracking-wide">
-                        <span>{language || 'code'}</span>
-                    </div>
-                    <div className="p-4 overflow-x-auto text-sm font-mono leading-relaxed whitespace-pre-wrap break-words">
-                        <code className={className} {...rest}>
-                            {children}
-                        </code>
-                    </div>
-                </div>
-            ) : (
-                <code className="bg-[var(--bg-tertiary)] text-[var(--text-primary)] px-1.5 py-0.5 rounded text-sm font-mono border border-[var(--border-color)] break-words" {...rest}>
+        // Task list support
+        li: ({ children, ...props }) => {
+            const isTaskItem = Array.isArray(children) && children[0]?.type === 'input';
+            return (
+                <li {...props} style={isTaskItem ? { listStyle: 'none', marginLeft: '-1em' } : {}}>
                     {children}
-                </code>
+                </li>
             );
         },
 
-        // Blockquotes
-        blockquote: (props) => (
-            <blockquote className="border-l-4 border-[var(--brand-primary)] pl-4 py-2 my-3 text-[var(--text-secondary)] italic bg-[var(--bg-tertiary)]/30 rounded-r" {...props} />
-        ),
-
-        // Strikethrough
-        del: (props) => (
-            <del className="line-through opacity-70" {...props} />
-        ),
-
-        // Emphasis
-        em: (props) => <em className="italic" {...props} />,
-
-        // Strong
-        strong: (props) => <strong className="font-semibold" {...props} />,
-
-        // Tables
-        table: ({ children, ...rest }) => (
-            <div className="overflow-x-auto my-4 rounded-lg border border-[var(--border-color)]">
-                <table className="w-full text-sm" {...rest}>{children}</table>
-            </div>
-        ),
-        thead: (props) => <thead className="bg-[var(--bg-secondary)] text-[var(--text-primary)] font-semibold" {...props} />,
-        tbody: (props) => <tbody className="divide-y divide-[var(--border-color)]" {...props} />,
-        tr: (props) => <tr className="hover:bg-[var(--bg-tertiary)]/50 transition-colors" {...props} />,
-        th: (props) => <th className="px-5 py-3 text-left font-semibold" {...props} />,
-        td: (props) => <td className="px-5 py-3 align-top" {...props} />,
-
-        // Paragraphs - Standard spacing
-        p: (props) => <p className="mb-4 last:mb-0 whitespace-pre-wrap" {...props} />,
-
-        // Hard line breaks
-        br: () => <br />,
-
-        // Horizontal Rule
-        hr: () => <hr className="my-6 border-[var(--border-color)]" />,
-
-        // Images
-        img: ({ src, alt, title, ...rest }) => (
-            <div className="my-4 rounded-lg overflow-hidden">
-                <img
-                    src={src}
-                    alt={alt || 'Image'}
-                    title={title}
-                    className="max-w-full h-auto border border-[var(--border-color)] rounded"
-                    {...rest}
-                />
-                {alt && <p className="text-xs text-[var(--text-secondary)] mt-2 italic">{alt}</p>}
-            </div>
-        ),
+        input: (props) => {
+            if (props.type === 'checkbox') {
+                return (
+                    <input
+                        type="checkbox"
+                        checked={props.checked || false}
+                        disabled
+                        style={{ marginRight: '0.5em', cursor: 'not-allowed' }}
+                        aria-label="Task list item"
+                    />
+                );
+            }
+            return <input {...props} />;
+        }
     }), [onLinkClick]);
 
     return (
-        <div className="message-content text-[var(--text-primary)] leading-relaxed">
-            <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
-                {content}
-            </ReactMarkdown>
+        <div className="response-section">
+            <div className="response-content">
+                <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+                    {content}
+                </ReactMarkdown>
+            </div>
         </div>
     );
 };
