@@ -1,8 +1,5 @@
 import API_CONFIG from './api.config';
 
-// ChatService Handles all API calls for chat functionality.
-// Enhanced with comprehensive error handling for deployment debugging.
-
 class ChatService {
     
     _logError(method, operation, error, context = {}) {
@@ -24,8 +21,8 @@ class ChatService {
         try {
             console.log(`[ChatService.${method}] Starting to fetch all threads`);
 
-            // const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.endpoints.THREAD}`);
-            const response = await fetch(`http://98.70.52.193:8000/new/api/chats/customer_52a629d0-0cf7-4cb9-9564-4cd382c7d7bc`);
+            const response = await fetch(`${API_CONFIG.BASE_URL}${API_CONFIG.endpoints.THREAD}`);
+            // const response = await fetch(`http://98.70.52.193:8000/new/api/chats/customer_52a629d0-0cf7-4cb9-9564-4cd382c7d7bc`);
 
             if (!response.ok) {
                 const errorBody = await response.text().catch(() => 'Unable to read error body');

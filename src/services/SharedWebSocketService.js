@@ -83,9 +83,9 @@ class SharedWebSocketService {
         }
 
         try {
-            const wsUrl = `http://98.70.52.193:8000${API_CONFIG.endpoints.CHAT_WS}`;
+            // const wsUrl = `http://98.70.52.193:8000${API_CONFIG.endpoints.CHAT_WS}`;
             // const wsUrl = `https://39d4-2407-c8c0-132-d400-8913-6343-f673-7c87.ngrok-free.app${API_CONFIG.endpoints.CHAT_WS}`;
-            // const wsUrl = `${API_CONFIG.WS_BASE_URL}${API_CONFIG.endpoints.CHAT_WS}`;
+            const wsUrl = `${API_CONFIG.WS_BASE_URL}${API_CONFIG.endpoints.CHAT_WS}`;
             console.log(`[SharedWS] Connecting to: ${wsUrl} at ${new Date().toISOString()}`);
             this.socket = new WebSocket(wsUrl);
 

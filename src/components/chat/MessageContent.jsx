@@ -140,7 +140,7 @@ export const TypingMessage = ({ content, onComplete, onTyping, onLinkClick }) =>
         else if (/!\[[^\]]*$/.test(fixedText)) {
             fixedText += ']()';
         }
-        // Check for unclosed link: [text](url
+        // Check for unclosed link: [text](url)
         else if (/(?<!\!)\[[^\]]+\]\([^)]*$/.test(fixedText)) {
             fixedText += ')';
         }
