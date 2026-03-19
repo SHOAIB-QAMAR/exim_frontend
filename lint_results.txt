@@ -1,0 +1,229 @@
+
+> eximgpt@1.0.0 lint
+> eslint .
+
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/coverage/lcov-report/block-navigation.js
+  1:1  warning  Unused eslint-disable directive (no problems were reported)
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/components/chat/AIProcessingDropdown.jsx
+  25:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  23 |     useEffect(() => {
+  24 |         if (isComplete) {
+> 25 |             setIsExpanded(false);
+     |             ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  26 |         } else {
+  27 |             setIsExpanded(true);
+  28 |         }  react-hooks/set-state-in-effect
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/components/chat/ChatMessages.jsx
+  122:21  error  'externalScrollToBottom' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    no-unused-vars
+  131:5   error  'messagesEndRef' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            no-unused-vars
+  145:12  error  'isAtBottom' is assigned a value but never used. Allowed unused vars must match /^[A-Z_]/u                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            no-unused-vars
+  148:5   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+  146 |     const isAtBottomRef = useRef(true);
+  147 |     const isStreamingRef = useRef(messages.some(m => m.isStreaming));
+> 148 |     isStreamingRef.current = messages.some(m => m.isStreaming);
+      |     ^^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  149 |
+  150 |     // Calculate if we're at the bottom on scroll
+  151 |     const handleScroll = useCallback(() => {  react-hooks/refs
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/components/chat/MessageContent.jsx
+  145:19  error  Unnecessary escape character: \!                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-useless-escape
+  147:19  error  Unnecessary escape character: \!                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  no-useless-escape
+  172:5   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+  170 |     const onCompleteRef = useRef(onComplete);
+  171 |     const onTypingRef = useRef(onTyping);
+> 172 |     onCompleteRef.current = onComplete;
+      |     ^^^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  173 |     onTypingRef.current = onTyping;
+  174 |
+  175 |     useEffect(() => {  react-hooks/refs
+  173:5   error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+  171 |     const onTypingRef = useRef(onTyping);
+  172 |     onCompleteRef.current = onComplete;
+> 173 |     onTypingRef.current = onTyping;
+      |     ^^^^^^^^^^^^^^^^^^^ Cannot update ref during render
+  174 |
+  175 |     useEffect(() => {
+  176 |         let rafId;                               react-hooks/refs
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/components/common/ConnectionStatus.jsx
+  42:32  error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  40 |         window.addEventListener('online', handleOnline);
+  41 |
+> 42 |         if (!navigator.onLine) setNetworkStatus('offline');
+     |                                ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  43 |
+  44 |         return () => {
+  45 |             window.removeEventListener('offline', handleOffline);  react-hooks/set-state-in-effect
+  57:8   warning  React Hook useEffect has a missing dependency: 'webSocketService'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   react-hooks/exhaustive-deps
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/components/common/Tooltip.jsx
+  89:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  87 |     useEffect(() => {
+  88 |         if (disabled && isVisible) {
+> 89 |             setIsVisible(false);
+     |             ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  90 |             if (timerRef.current) clearTimeout(timerRef.current);
+  91 |         }
+  92 |     }, [disabled, isVisible]);  react-hooks/set-state-in-effect
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/components/features/ContextPanel.jsx
+  11:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+   9 |     useEffect(() => {
+  10 |         if (isOpen) {
+> 11 |             setRenderParams({ show: true, animate: true });
+     |             ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  12 |             setIframeLoading(true); // Reset loading on open
+  13 |         } else {
+  14 |             setRenderParams(prev => ({ ...prev, animate: false }));  react-hooks/set-state-in-effect
+  23:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  21 |     useEffect(() => {
+  22 |         if (data?.type === 'link') {
+> 23 |             setIframeLoading(true);
+     |             ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  24 |         }
+  25 |     }, [data]);
+  26 |                                                                                                                                  react-hooks/set-state-in-effect
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/components/features/SearchPanel.jsx
+  19:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+  17 |     useEffect(() => {
+  18 |         if (isOpen) {
+> 19 |             setSearchTerm("");
+     |             ^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  20 |             // Merge SearchData (Starters) and History Threads
+  21 |             setResults([...SearchData, ...threads]);
+  22 |         }  react-hooks/set-state-in-effect
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/context/AuthContext.jsx
+  8:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/context/ThemeContext.jsx
+  34:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/context/UIContext.jsx
+  80:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components  react-refresh/only-export-components
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/context/WebSocketContext.jsx
+  22:10  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+  20 |
+  21 |     // Lazily create the instance once
+> 22 |     if (!serviceRef.current) {
+     |          ^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  23 |         serviceRef.current = new SharedWebSocketService();
+  24 |     }
+  25 |
+
+To initialize a ref only once, check that the ref is null with the pattern `if (ref.current == null) { ref.current = ... }`  react-hooks/refs
+  42:43  error  Error: Cannot access refs during render
+
+React refs are values that are not needed for rendering. Refs should only be accessed outside of render, such as in event handlers or effects. Accessing a ref value (the `current` property) during render can cause your component not to update as expected (https://react.dev/reference/react/useRef).
+
+  40 |
+  41 |     return (
+> 42 |         <WebSocketContext.Provider value={serviceRef.current}>
+     |                                           ^^^^^^^^^^^^^^^^^^ Cannot access ref value during render
+  43 |             {children}
+  44 |         </WebSocketContext.Provider>
+  45 |     );                                                                                      react-hooks/refs
+  51:14  error  Fast refresh only works when a file only exports components. Use a new file to share constants or functions between components                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-refresh/only-export-components
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/hooks/useWebSocket.js
+  256:8   warning  React Hook useEffect has a missing dependency: 'webSocketService'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+  259:37  error    Compilation Skipped: Existing memoization could not be preserved
+
+React Compiler has skipped optimizing this component because the existing manual memoization could not be preserved. The inferred dependencies did not match the manually specified dependencies, which could cause the value to change more or less frequently than expected. The inferred dependency was `webSocketService`, but the source dependencies were []. Inferred dependency not present in source.
+
+  257 |
+  258 |
+> 259 |     const sendMessage = useCallback((threadId, text) => {
+      |                                     ^^^^^^^^^^^^^^^^^^^^^
+> 260 |         try {
+      | ^^^^^^^^^^^^^
+> 261 |             if (!threadId) return false;
+      | ^^^^^^^^^^^^^
+> 262 |             msgSent(threadId); // [2] MSG — logs send timestamp for TTFT
+      | ^^^^^^^^^^^^^
+> 263 |             return webSocketService.sendMessage(threadId, text);
+      | ^^^^^^^^^^^^^
+> 264 |         } catch (error) {
+      | ^^^^^^^^^^^^^
+> 265 |             logger.error('[useWebSocket.sendMessage] Error:', error.message);
+      | ^^^^^^^^^^^^^
+> 266 |             return false;
+      | ^^^^^^^^^^^^^
+> 267 |         }
+      | ^^^^^^^^^^^^^
+> 268 |     }, []);
+      | ^^^^^^ Could not preserve existing manual memoization
+  269 |
+  270 |     return { sendMessage };
+  271 | };  react-hooks/preserve-manual-memoization
+  268:8   warning  React Hook useCallback has a missing dependency: 'webSocketService'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        react-hooks/exhaustive-deps
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/layouts/AuthPage.jsx
+  2:10  error  'useAuth' is defined but never used. Allowed unused vars must match /^[A-Z_]/u  no-unused-vars
+
+/Users/shoaibqamar/Desktop/AAA2/exim_copy/Frontend/src/layouts/Layout.jsx
+  65:11  warning  The 'closeContextPanel' function makes the dependencies of useEffect Hook (at line 134) change on every render. To fix this, wrap the definition of 'closeContextPanel' in its own useCallback() Hook  react-hooks/exhaustive-deps
+
+✖ 27 problems (22 errors, 5 warnings)
+  0 errors and 1 warning potentially fixable with the `--fix` option.
+

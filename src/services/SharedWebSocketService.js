@@ -1,30 +1,46 @@
+import { io } from 'socket.io-client';
 import API_CONFIG from './api.config';
 
 // ==================== CONSTANTS ====================
-const CONNECTION_DEBOUNCE_MS = 300;
-const MAX_RECONNECT_ATTEMPTS = 5;
-const INITIAL_RETRY_DELAY_MS = 1000;
+const CONNECTION_DEBOUNCE_MS = 300;     // Delay before opening/closing sockets to prevent UI flicker spam
+const MAX_RECONNECT_ATTEMPTS = 5;       // Total retry limit before showing a hard error to the user
+const INITIAL_RETRY_DELAY_MS = 1000;    // Exponential backoff starting interval
+
+// SharedWebSocketService (Singleton)
+// Instead of giving every chat tab its own WebSocket (which strains server limits), this class pools all active tabs into a single, global, multiplexed WebSocket connection.
+// It manages auto-reconnects, queueing offline messages, and measuring network latency (ping/pong).
 
 class SharedWebSocketService {
+    static instance = null;
+
     constructor() {
-        // WebSocket state
+        if (SharedWebSocketService.instance) {
+            return SharedWebSocketService.instance;
+        }
+        SharedWebSocketService.instance = this;
+
+        // Socket.IO state
         this.socket = null;
+        // Arrays/Sets mapping which UI components are currently listening
         this.subscribers = new Set();
         this.errorSubscribers = new Set();
+
+        // A queue holding messages the user tried to send while offline/reconnecting
         this.messageQueue = [];
+
+        // A list of all chat tab IDs currently open in the UI that require the socket
         this.activeThreads = new Set();
 
-        // Connection state
+        // State trackers
         this.reconnectAttempts = 0;
-        this.isExplicitlyDisconnected = false;
+        this.isExplicitlyDisconnected = false; // True during logout or manual disconnects
 
-        // Timers
+        // Timers for managing debounce
         this.connectTimer = null;
         this.disconnectTimer = null;
         this.reconnectTimer = null;
 
-
-        // Event listeners
+        // Browser level listeners to detect if the laptop/phone completely loses WiFi
         window.addEventListener('online', () => this._handleNetworkChange(true));
         window.addEventListener('offline', () => this._handleNetworkChange(false));
     }
@@ -49,15 +65,13 @@ class SharedWebSocketService {
             this.disconnectTimer = null;
         }
 
-        if (this.socket?.readyState === WebSocket.OPEN ||
-            this.socket?.readyState === WebSocket.CONNECTING) {
+        if (this.socket?.connected || this.connectTimer) {
             return;
         }
 
-        if (this.connectTimer) clearTimeout(this.connectTimer);
         this.connectTimer = setTimeout(() => {
             this.connectTimer = null;
-            this._createWebSocket();
+            this._createSocket();
         }, CONNECTION_DEBOUNCE_MS);
     }
 
@@ -71,166 +85,216 @@ class SharedWebSocketService {
         this.disconnectTimer = setTimeout(() => {
             this.disconnectTimer = null;
             this.isExplicitlyDisconnected = true;
-            this._closeWebSocket();
+            this._closeSocket();
         }, CONNECTION_DEBOUNCE_MS);
     }
 
-    _createWebSocket() {
+    _createSocket() {
         if (this.activeThreads.size === 0) return;
-        if (this.socket?.readyState === WebSocket.OPEN ||
-            this.socket?.readyState === WebSocket.CONNECTING) {
+
+        if (this.socket && (this.socket.connected || this.socket.connecting || this.socket.io.engine)) {
             return;
         }
 
         try {
-            // const wsUrl = `http://98.70.52.193:8000${API_CONFIG.endpoints.CHAT_WS}`;
-            // const wsUrl = `https://39d4-2407-c8c0-132-d400-8913-6343-f673-7c87.ngrok-free.app${API_CONFIG.endpoints.CHAT_WS}`;
-            const wsUrl = `${API_CONFIG.WS_BASE_URL}${API_CONFIG.endpoints.CHAT_WS}`;
-            console.log(`[SharedWS] Connecting to: ${wsUrl} at ${new Date().toISOString()}`);
-            this.socket = new WebSocket(wsUrl);
+            const url = API_CONFIG.SOCKET_IO_URL;
 
-            this.socket.onopen = () => {
-                console.log('[SharedWS] Connected');
+            this.socket = io(url, {
+                forceNew: true,
+                multiplex: false,
+                transports: ['polling', 'websocket'],
+                withCredentials: true,
+                reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
+                reconnectionDelay: INITIAL_RETRY_DELAY_MS,
+                timeout: 30000
+            });
+
+            this.socket.connect();
+
+            this.socket.io.on("error", () => {
+                // Socket.IO manager-level error
+            });
+
+            this.socket.io.on("reconnect_attempt", () => {
+                // Reconnect attempt in progress
+            });
+
+            this.socket.io.on("reconnect_error", () => {
+                // Reconnect failed
+            });
+
+            this.socket.on('error', () => {
+                // Socket-level error
+            });
+
+            this.socket.on('connect', () => {
                 this.reconnectAttempts = 0;
-                this._notifyErrorSubscribers(null); // Clear errors
+                this._notifyErrorSubscribers(null);
                 this._flushMessageQueue();
-            };
+            });
 
-            this.socket.onmessage = (event) => {
-                this._handleMessage(event);
-            };
+            this.socket.on('query_response', (data) => {
+                console.log('[WS] ← query_response', data);
+                this._handleMessage({ data });
+            });
 
-            this.socket.onerror = () => {
-                console.error('[SharedWS] WebSocket error observed');
-                // Don't broadcast here, onclose will handle retry logic
-            };
+            this.socket.on('connect_error', () => {
+                this._notifyErrorSubscribers('Connection error. Reconnecting...');
+            });
 
-            this.socket.onclose = () => {
-                this.socket = null;
+            this.socket.on('disconnect', () => {
                 if (!this.isExplicitlyDisconnected && this.activeThreads.size > 0) {
                     this._notifyErrorSubscribers('Connection lost. Reconnecting...');
-                    this._handleReconnection();
                 }
-            };
-        } catch (err) {
-            console.error('[SharedWS] Failed to create WebSocket:', err);
-            this._handleReconnection();
+            });
+
+        } catch {
+            // Connection creation failed
         }
     }
 
+
+
+    /**
+     * Implements basic alerting if Socket.IO fails to reconnect after all attempts.
+     */
     _handleReconnection() {
         if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
             this._notifyErrorSubscribers('Unable to connect to chat server. Please check your connection.');
-            return;
         }
-
-        const delay = INITIAL_RETRY_DELAY_MS * Math.pow(1.5, this.reconnectAttempts);
-        this.reconnectAttempts++;
-
-        console.log(`[SharedWS] Reconnecting in ${delay}ms (Attempt ${this.reconnectAttempts}) at ${new Date().toISOString()}`);
-
-        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-        this.reconnectTimer = setTimeout(() => {
-            if (this.activeThreads.size > 0) {
-                this._createWebSocket();
-            }
-        }, delay);
     }
 
+    /**
+     * Master sorting switchboard. 
+     * Handles parsed data from query_response event.
+     */
     _handleMessage(event) {
-        console.log('[SharedWS] Received message:', event.data);
-
         try {
-            let data;
+            // Socket.IO already parses JSON, but we'll be defensive
+            const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+            if (!data) return;
 
-            const rawData = event.data;
+            // Extract the target threadId for multiplexing
+            // Backend sends session_id which contains the thread identifier
+            let threadId = data.threadId || data.thread_id || data.session_id || data.chat_id || this.activeThreadId;
 
-            // Check for SSE-style "data: {...}" format
-            if (typeof rawData === 'string' && rawData.startsWith('data: ')) {
-                const jsonStr = rawData.substring(6).trim();
-                if (!jsonStr) return; // Skip empty heartbeats
-                data = JSON.parse(jsonStr);
-            } else {
-                // Standard JSON message
-                data = JSON.parse(rawData);
+            // For new chats, backend returns a new session_id that doesn't match
+            // the local UUID. Use questionAnswer to route to the correct local session.
+            if (!this.pendingRequests) this.pendingRequests = new Map();
+            if (data.questionAnswer && this.pendingRequests.has(data.questionAnswer)) {
+                const localThreadId = this.pendingRequests.get(data.questionAnswer);
+                if (localThreadId !== threadId) {
+                    threadId = localThreadId;
+                }
+                // Clean up once the stream is complete
+                const isDone = data.done === true ||
+                    data.TextCompleted === true ||
+                    data.type === 'done' ||
+                    data.type === 'message_end' ||
+                    (typeof data.response === 'string' && data.response.includes('@//done//@'));
+                if (isDone) {
+                    this.pendingRequests.delete(data.questionAnswer);
+                }
             }
 
-            // Handle ping/pong
-            if (data.type === 'pong') {
-                return;
-            }
-
-            // Extract threadId from message (varies by backend format)
-            const threadId = data.threadId || data.thread_id || data.chat_id || this.activeThreadId;
-
-            // Notify local subscribers
+            // Notify all local React UI components subscribed to this Service
             this._notifySubscribers(threadId, data);
 
-        } catch (error) {
-            console.error('[SharedWS] Failed to parse message:', error);
-            console.error('[SharedWS] Raw message causing error:', event.data);
+        } catch {
+            // Message handling failed silently
         }
     }
 
+    /**
+     * Loops through any offline messages sent by the user during an outage 
+     * and pushes them correctly onto the newly re-established Socket.IO pipe.
+     */
     _flushMessageQueue() {
         if (this.messageQueue.length === 0) return;
+
         const queue = [...this.messageQueue];
         this.messageQueue = [];
+
         queue.forEach(msg => {
-            if (this.socket?.readyState === WebSocket.OPEN) {
-                this.socket.send(msg);
+            if (this.socket?.connected) {
+                this.socket.emit('gpt_query', msg);
             } else {
                 this.messageQueue.push(msg);
             }
         });
     }
 
+    /**
+     * Sends the structured gpt_query payload.
+     */
     _sendViaWebSocket(threadId, payload) {
-        let message;
+        let parsed;
         try {
-            const parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
-            message = JSON.stringify({ ...parsed, threadId });
+            parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
         } catch {
-            message = JSON.stringify({ threadId, content: payload });
+            parsed = { threadId, content: payload };
         }
 
-        if (this.socket?.readyState === WebSocket.OPEN) {
-            this.socket.send(message);
+        if (this.socket?.connected) {
+
+            // Track questionAnswer → local threadId for routing responses back
+            if (!this.pendingRequests) this.pendingRequests = new Map();
+            if (parsed.questionAnswer) {
+                this.pendingRequests.set(parsed.questionAnswer, threadId);
+            }
+
+            console.log('[WS] → gpt_query', parsed);
+            this.socket.emit('gpt_query', parsed);
             return true;
         }
 
-        // Queue message if connecting
-        if (this.socket?.readyState === WebSocket.CONNECTING || this.reconnectAttempts > 0) {
-            this.messageQueue.push(message);
-            // If offline/reconnecting, ensure we are trying to connect
-            if (!this.socket) this._scheduleConnect();
-            return true;
-        }
-
-        return false;
+        this.messageQueue.push(parsed);
+        if (!this.socket) this._scheduleConnect();
+        return true;
     }
 
-    _closeWebSocket() {
+    _closeSocket() {
         if (this.socket) {
-            this.socket.close();
+            this.socket.disconnect();
             this.socket = null;
         }
         this.messageQueue = [];
     }
 
+    /**
+     * Public method to force-close the connection (e.g. on logout).
+     */
+    forceClose() {
+        this.isExplicitlyDisconnected = true;
+        clearTimeout(this.connectTimer);
+        clearTimeout(this.disconnectTimer);
+        clearTimeout(this.reconnectTimer);
+
+        this.connectTimer = null;
+        this.disconnectTimer = null;
+        this.reconnectTimer = null;
+        this.activeThreads.clear();
+        this.reconnectAttempts = 0;
+        this._closeSocket();
+    }
+
     // ==================== ERROR HANDLING ====================
 
+    /** 
+     * Iterates exactly through all active React hooks listening to the socket 
+     * and passes the data chunk upwards. 
+     */
     _notifySubscribers(threadId, message) {
         this.subscribers.forEach(callback => {
             try { callback(threadId, message); }
-            catch (err) { console.error('[SharedWS] Subscriber error:', err); }
+            catch { /* Subscriber error */ }
         });
     }
 
     _notifyErrorSubscribers(error) {
         this.errorSubscribers.forEach(callback => {
             try { callback(error); }
-            catch (err) { console.error('[SharedWS] Error subscriber error:', err); }
+            catch { /* Error subscriber error */ }
         });
     }
 
@@ -272,4 +336,4 @@ class SharedWebSocketService {
     }
 }
 
-export default new SharedWebSocketService();
+export default SharedWebSocketService;

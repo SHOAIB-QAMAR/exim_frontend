@@ -1,14 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { FaShip, FaPlane, FaTruck, FaBox } from "react-icons/fa6";
 
-/**
- * LogisticsLoader Component
- * Displays a rotating icon animation to indicate AI processing state.
- * Cycles through logistics-related icons (Ship, Plane, Truck, Box).
- */
 const icons = [FaShip, FaPlane, FaTruck, FaBox];
 
-const LogisticsLoader = () => {
+const LogisticsLoader = ({ label = "AI Processing..." }) => {
     const [index, setIndex] = useState(0);
 
     // Rotate through icons every 1.2s
@@ -37,7 +32,7 @@ const LogisticsLoader = () => {
             </div>
 
             <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-bold text-[var(--text-primary)] tracking-wide uppercase">AI Processing...</span>
+                <span className="text-xs font-bold text-[var(--text-primary)] tracking-wide uppercase">{label}</span>
             </div>
         </div>
     );

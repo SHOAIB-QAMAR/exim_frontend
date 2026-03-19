@@ -5,7 +5,8 @@ const API_CONFIG = {
         THREAD: "/api/thread",
         CHAT_WS: "/ws/chat",
         UPLOAD: "/api/upload"
-    }
+    },
+    SOCKET_IO_URL: "https://eximgptlivekitnew.devapi.zipaworld.com"
 };
 
 export default API_CONFIG;

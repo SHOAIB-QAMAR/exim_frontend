@@ -1,88 +1,99 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 
-/**
- * Reusable Tooltip component using React Portal and Tailwind CSS.
- * 
- * @param {Object} props
- * @param {string|React.ReactNode} props.content - Content to display inside the tooltip
- * @param {React.ReactNode} props.children - The element that triggers the tooltip
- * @param {string} props.position - Preferred position: 'top', 'bottom', 'left', 'right' (default: 'top')
- * @param {boolean} props.disabled - specific manual disable flag
- * @param {boolean} props.forceOpen - For manually controlling visibility (e.g. for error messages)
- * @param {string} props.className - Custom classes for the trigger wrapper
- * @param {number} props.delay - Delay in ms before showing tooltip (default: 200)
- */
+/* Reusable Tooltip Component using React Portal and Tailwind CSS.
+ * It uses `createPortal` to render the tooltip directly into `document.body` to avoid being clipped by parent containers with `overflow: hidden` or `z-index` stacking contexts.
+ * @param {Object} props || @param {string|React.ReactNode} props.content - Content to display inside the tooltip || @param {React.ReactNode} props.children - The element that triggers the tooltip on hover || @param {string} props.position - Preferred position: 'top', 'bottom', 'left', 'right' (default: 'top') || @param {boolean} props.disabled - specific manual disable flag; prevents tooltip from showing || @param {string} props.className - Custom classes applied to the inline-block wrapper around the children || @param {number} props.delay - Delay in ms before showing tooltip on mouse hover (default: 200) */
 
 const Tooltip = ({
     content,
     children,
     position = 'top',
     disabled = false,
-    forceOpen = undefined,
     className = '',
     delay = 200
 }) => {
     const [isVisible, setIsVisible] = useState(false);
+
     const [coords, setCoords] = useState({ top: 0, left: 0 });
+
+    // Reference to the wrapper div surrounding the children.
     const triggerRef = useRef(null);
+
+    // Reference to the timeout timer used for the hover delay to prevent rapid flickering
     const timerRef = useRef(null);
 
-    // Handle controlled vs uncontrolled state
-    const show = forceOpen !== undefined ? forceOpen : isVisible;
-
+    // ── POSITIONING LOGIC ──
     const updatePosition = React.useCallback(() => {
-        if (!triggerRef.current || !show) return;
 
+        if (!triggerRef.current || !isVisible) return;
         const rect = triggerRef.current.getBoundingClientRect();
-        const scrollX = window.scrollX;
-        const scrollY = window.scrollY;
-
-        // Gap between trigger and tooltip
         const gap = 8;
 
         let top = 0;
         let left = 0;
 
-        // Simple positioning logic
+        // Keep in mind the `getTransform()` function below applies CSS translations (-50%, -100%) relative to this anchor point to properly align the center borders.
         switch (position) {
             case 'top':
-                top = rect.top + scrollY - gap;
-                left = rect.left + scrollX + rect.width / 2;
+                // Anchor: centered above the trigger. 
+                // Transform will shift it UP by 100% of the tooltip's height and LEFT by 50% of the tooltip's width.
+                top = rect.top - gap;
+                left = rect.left + rect.width / 2;
                 break;
             case 'bottom':
-                top = rect.bottom + scrollY + gap;
-                left = rect.left + scrollX + rect.width / 2;
+                // Anchor: centered below the trigger.
+                // Transform will shift it LEFT by 50% of the tooltip's width.
+                top = rect.bottom + gap;
+                left = rect.left + rect.width / 2;
                 break;
             case 'left':
-                top = rect.top + scrollY + rect.height / 2;
-                left = rect.left + scrollX - gap;
+                // Anchor: left edge, vertically centered.
+                // Transform will shift it LEFT by 100% of tooltip's width, UP by 50% of tooltip's height.
+                top = rect.top + rect.height / 2;
+                left = rect.left - gap;
                 break;
             case 'right':
-                top = rect.top + scrollY + rect.height / 2;
-                left = rect.right + scrollX + gap;
+                // Anchor: right edge, vertically centered.
+                // Transform will shift it UP by 50% of tooltip's height.
+                top = rect.top + rect.height / 2;
+                left = rect.right + gap;
                 break;
             default:
-                top = rect.bottom + scrollY + gap;
-                left = rect.left + scrollX + rect.width / 2;
+                // Fallback to bottom
+                top = rect.bottom + gap;
+                left = rect.left + rect.width / 2;
         }
 
         setCoords({ top, left });
-    }, [show, position]);
+    }, [isVisible, position]);
 
+    // ── EVENT LISTENERS FOR DYNAMIC REPOSITIONING ──
     useEffect(() => {
-        if (show) {
-            // eslint-disable-next-line
+        if (isVisible) {
             updatePosition();
+
             window.addEventListener('resize', updatePosition);
+
+            // Using `true` for useCapture allows catching scroll events from any nested scrollable child elements.
             window.addEventListener('scroll', updatePosition, true);
         }
+
         return () => {
             window.removeEventListener('resize', updatePosition);
             window.removeEventListener('scroll', updatePosition, true);
         };
-    }, [show, updatePosition]);
+    }, [isVisible, updatePosition]);
 
+    // ── DISABLE OVERRIDE CLEANUP ──
+    useEffect(() => {
+        if (disabled && isVisible) {
+            setIsVisible(false);
+            if (timerRef.current) clearTimeout(timerRef.current);
+        }
+    }, [disabled, isVisible]);
+
+    // ── MOUSE INTERACTION HANDLERS ──
     const handleMouseEnter = () => {
         if (disabled) return;
         timerRef.current = setTimeout(() => {
@@ -95,21 +106,21 @@ const Tooltip = ({
         setIsVisible(false);
     };
 
-    // ...
-
-    // Calculate transform based on position to center/align the tooltip
+    // These percentages dictate how the tooltip centers itself around the absolute (top/left) coordinate anchor we calculated earlier.
     const getTransform = () => {
         switch (position) {
-            case 'top': return 'translate(-50%, -100%)';
-            case 'bottom': return 'translate(-50%, 0)';
-            case 'left': return 'translate(-100%, -50%)';
-            case 'right': return 'translate(0, -50%)';
+            case 'top': return 'translate(-50%, -100%)';  // Shift UP 100%, LEFT 50%
+            case 'bottom': return 'translate(-50%, 0)';    // Shift LEFT 50%
+            case 'left': return 'translate(-100%, -50%)'; // Shift LEFT 100%, UP 50%
+            case 'right': return 'translate(0, -50%)';    // Shift UP 50%
             default: return 'translate(-50%, 0)';
         }
     };
 
     return (
         <>
+            {/* ── TRIGGER WRAPPER ── */}
+            {/* The invisible div wrapping the child element to intercept mouse events and provide sizing context */}
             <div
                 ref={triggerRef}
                 onMouseEnter={handleMouseEnter}
@@ -123,21 +134,22 @@ const Tooltip = ({
                 {children}
             </div>
 
-            {show && createPortal(
+            {/* ── PORTAL RENDERING ── */}
+            {/* If the tooltip should be shown, inject it directly into the <body> tag to escape DOM clipping */}
+            {isVisible && createPortal(
                 <div
+                    // High z-index to guarantee it floats above entirely all application UI
                     className="fixed z-[10000] px-3 py-1.5 text-xs font-medium bg-white dark:bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-md shadow-lg pointer-events-none transition-opacity duration-200 animate-in fade-in"
                     style={{
                         top: coords.top,
                         left: coords.left,
                         transform: getTransform(),
-                        // Add some max width constraints if needed
                         maxWidth: '200px',
                         whiteSpace: 'normal',
                         textAlign: 'center'
                     }}
                 >
                     {content}
-                    {/* Optional Arrow could be added here if desired */}
                 </div>,
                 document.body
             )}
