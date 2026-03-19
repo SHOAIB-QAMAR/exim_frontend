@@ -11,12 +11,15 @@ const INITIAL_RETRY_DELAY_MS = 1000;    // Exponential backoff starting interval
 // It manages auto-reconnects, queueing offline messages, and measuring network latency (ping/pong).
 
 class SharedWebSocketService {
+
     static instance = null;
 
     constructor() {
+
         if (SharedWebSocketService.instance) {
             return SharedWebSocketService.instance;
         }
+        
         SharedWebSocketService.instance = this;
 
         // Socket.IO state
