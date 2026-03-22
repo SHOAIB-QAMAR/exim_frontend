@@ -14,6 +14,7 @@ const STORAGE_KEY_ACTIVE_ID = 'CHATS_ACTIVE_SESSION_ID';
 const createSession = (id = uuidv1(), title = "New Chat") => ({
     id,
     sessionId: null, // Backend's session_id — null for new chats, set when loaded from history or promoted
+    objectId: null, // Backend's MongoDB _id
     messages: [],
     hasMoreMessages: false,
     messageSkip: 0,
@@ -144,6 +145,9 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
         try {
             if (!threadId) return;
 
+            const thread = threads.find(t => t.threadId === threadId);
+            const objectId = thread?.objectId || thread?._id || threadId;
+
             // Check if already open
             const existing = activeSessions.find(s => s.id === threadId);
             if (existing) {
@@ -156,7 +160,7 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
             }
 
             // Create new session with loading state. Set isNew to false because we are loading from history.
-            const newSession = { ...createSession(threadId, "Loading..."), isThinking: true, isNew: false };
+            const newSession = { ...createSession(threadId, "Loading..."), objectId, isThinking: true, isNew: false };
 
             setActiveSessions(prev => {
                 let updated = prev.length >= MAX_ACTIVE_SESSIONS
@@ -170,8 +174,7 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
 
             // Fetch messages from server (initial batch - page 1)
             try {
-                const response = await ChatService.getThreadMessages(threadId, 1);
-                const thread = threads.find(t => t.threadId === threadId);
+                const response = await ChatService.getThreadMessages(objectId, 1);
 
                 setActiveSessions(prev => prev.map(s => s.id === threadId ? {
                     ...s,
@@ -180,6 +183,7 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
                     messagePage: 1,
                     title: thread?.title || "Chat",
                     sessionId: thread?.sessionId || thread?.session_id || null,
+                    objectId: objectId,
                     isThinking: false
                 } : s));
             } catch {
@@ -204,8 +208,9 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
 
         try {
             const nextPage = (activeSession.messagePage || 1) + 1;
+            const objectId = activeSession.objectId || activeSessionId;
             const response = await ChatService.getThreadMessages(
-                activeSessionId,
+                objectId,
                 nextPage
             );
 

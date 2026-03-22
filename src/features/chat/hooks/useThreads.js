@@ -80,7 +80,11 @@ export const useThreads = () => {
     const deleteThread = async (threadId) => {
         try {
             if (!threadId) return false;
-            await ChatService.deleteThread(threadId);
+            
+            const threadToDel = threads.find(t => t.threadId === threadId);
+            const objectId = threadToDel?.objectId || threadToDel?._id || threadId;
+
+            await ChatService.deleteThread(objectId);
             setThreads(prev => prev.filter(t => t.threadId !== threadId));
             return true;
         } catch {

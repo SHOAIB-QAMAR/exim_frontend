@@ -65,6 +65,7 @@ class ChatService {
                 ...thread,
                 threadId: thread.session_id || thread._id || thread.threadId,
                 sessionId: thread.session_id,
+                objectId: thread._id,
                 title: thread.query_head || thread.title,
                 updatedAt: thread.updatedAt || new Date().toISOString()
             };
