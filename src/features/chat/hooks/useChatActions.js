@@ -40,33 +40,40 @@ export const useChatActions = ({
 
             // Handle image upload if present, or use existing from retry
             if (activeSession.selectedFile && !options.isRetry) {
-                blobUrl = URL.createObjectURL(activeSession.selectedFile);
-                userMsg.image = blobUrl;
+                if (typeof activeSession.selectedFile === 'string') {
+                    // Already uploaded by background process in InputArea
+                    uploadedImageUrl = activeSession.selectedFile;
+                    userMsg.image = uploadedImageUrl;
+                } else {
+                    // Fallback: still a File, wait for upload before sending
+                    blobUrl = URL.createObjectURL(activeSession.selectedFile);
+                    userMsg.image = blobUrl;
 
-                try {
-                    // Set uploading state for the UI
-                    setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, isUploading: true } : s));
-                    
-                    // Validate file
-                    validateImage(activeSession.selectedFile);
+                    try {
+                        // Set uploading state for the UI
+                        setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, isUploading: true } : s));
+                        
+                        // Validate file
+                        validateImage(activeSession.selectedFile);
 
-                    // Compress the image
-                    const compressedImage = await compressImage(activeSession.selectedFile);
+                        // Compress the image
+                        const compressedImage = await compressImage(activeSession.selectedFile);
 
-                    // Upload directly to Supabase
-                    const publicUrl = await uploadImageToSupabase(compressedImage);
-                    
-                    uploadedImageUrl = publicUrl;
-                    userMsg.image = uploadedImageUrl; // Replace blob URL with final URL
-                    
-                    if (blobUrl) URL.revokeObjectURL(blobUrl);
-                    blobUrl = null;
-                } catch {
-                    // Upload failed — abort send so user can retry
-                    alert('Image upload failed. Please try again.');
-                    setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, isUploading: false } : s));
-                    isSendingRef.current = false;
-                    return; 
+                        // Upload directly to Supabase
+                        const publicUrl = await uploadImageToSupabase(compressedImage);
+                        
+                        uploadedImageUrl = publicUrl;
+                        userMsg.image = uploadedImageUrl; // Replace blob URL with final URL
+                        
+                        if (blobUrl) URL.revokeObjectURL(blobUrl);
+                        blobUrl = null;
+                    } catch {
+                        // Upload failed — abort send so user can retry
+                        alert('Image upload failed. Please try again.');
+                        setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, isUploading: false } : s));
+                        isSendingRef.current = false;
+                        return; 
+                    }
                 }
             } else if (options.isRetry && options.imageUrl) {
                 uploadedImageUrl = options.imageUrl;

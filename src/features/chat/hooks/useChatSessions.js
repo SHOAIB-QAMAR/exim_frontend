@@ -72,7 +72,7 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
 
     // Updates fields on the currently active session 
     const updateActiveSession = (fields) => {
-        setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, ...fields } : s));
+        console.log("Updating session:", activeSessionId, fields); setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, ...fields } : s));
     };
 
     // Removes the least recently used session (excluding active)

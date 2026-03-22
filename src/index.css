@@ -136,7 +136,7 @@ body {
 
 /* Viewport Handling */
 @supports (height: 100dvh) {
-    .app {
+    .app-container {
         height: 100dvh;
     }
 }
@@ -148,7 +148,7 @@ body {
         overscroll-behavior: none;
     }
 
-    .app {
+    .app-container {
         height: 100dvh;
         height: -webkit-fill-available;
     }

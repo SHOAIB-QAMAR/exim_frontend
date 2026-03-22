@@ -4,6 +4,7 @@ import Tooltip from '../../../components/common/Tooltip';
 import useSpeechToText from '../../../hooks/useSpeechToText';
 import { useUI } from '../../../providers/UIContext';
 import { FaPlus, FaMicrophone, FaStop, FaPaperPlane, FaXmark, FaImage, FaCamera, FaRotate, FaCircleCheck } from "react-icons/fa6";
+import { validateImage, compressImage, uploadImageToSupabase } from '../../../services/uploadService';
 
 /* Primary chat input area with text, image upload, webcam capture, and speech-to-text. */
 
@@ -17,10 +18,14 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
     const [showCamera, setShowCamera] = useState(false);
     const [facingMode, setFacingMode] = useState('environment');
     const [notification, setNotification] = useState(null);
+    const notificationTimer = useRef(null);
 
-    const showNotificationBanner = () => {
-        setNotification('Image loaded successfully');
-        setTimeout(() => setNotification(null), 3000);
+    const showNotification = (msg, duration = null) => {
+        setNotification(msg);
+        if (notificationTimer.current) clearTimeout(notificationTimer.current);
+        if (duration) {
+            notificationTimer.current = setTimeout(() => setNotification(null), duration);
+        }
     };
 
     useEffect(() => {
@@ -56,16 +61,20 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
         }
     }, [transcript, inputValue, setInputValue, resetTranscript]);
 
-    // Image preview blob URL
+    // Image preview blob URL or string URL
     const previewUrl = useMemo(() => {
-        return (selectedFile && (selectedFile instanceof File || selectedFile instanceof Blob))
-            ? URL.createObjectURL(selectedFile)
-            : null;
+        if (!selectedFile) return null;
+        if (typeof selectedFile === 'string') return selectedFile;
+        try {
+            return URL.createObjectURL(selectedFile);
+        } catch {
+            return null;
+        }
     }, [selectedFile]);
 
     useEffect(() => {
         return () => {
-            if (previewUrl) URL.revokeObjectURL(previewUrl);
+            if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl);
         };
     }, [previewUrl]);
 
@@ -92,7 +101,7 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
         }
     };
 
-    const handleFileChange = (e) => {
+    const handleFileChange = async (e) => {
         const file = e.target.files?.[0];
         if (file) {
             const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
@@ -104,8 +113,18 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
                 alert('Image size must be less than 10MB');
                 return;
             }
-            setSelectedFile(file);
-            showNotificationBanner();
+            
+            try {
+                showNotification('Image uploading...', null);
+                validateImage(file);
+                const compressedImage = await compressImage(file);
+                const publicUrl = await uploadImageToSupabase(compressedImage);
+                setSelectedFile(publicUrl);
+                showNotification('Image loaded successfully', 3000);
+            } catch (err) {
+                console.error("Background image upload failed:", err);
+                showNotification('Image upload failed', 3000);
+            }
         }
         e.target.value = '';
     };
@@ -116,11 +135,21 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
         if (imageSrc) {
             fetch(imageSrc)
                 .then(res => res.blob())
-                .then(blob => {
+                .then(async blob => {
                     const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-                    setSelectedFile(file);
-                    showNotificationBanner();
                     setShowCamera(false);
+                    
+                    try {
+                        showNotification('Image uploading...', null);
+                        validateImage(file);
+                        const compressedImage = await compressImage(file);
+                        const publicUrl = await uploadImageToSupabase(compressedImage);
+                        setSelectedFile(publicUrl);
+                        showNotification('Image loaded successfully', 3000);
+                    } catch (err) {
+                        console.error("Camera image upload failed:", err);
+                        showNotification('Image upload failed', 3000);
+                    }
                 });
         }
     }, [setSelectedFile]);
@@ -182,17 +211,23 @@ const InputArea = ({ inputValue, setInputValue, onSend, mode, selectedFile, setS
             <div className={`${isStandalone ? 'input-area shrink-0 px-4 py-4 bg-[var(--bg-primary)] border-t border-[var(--border-color)] transition-colors duration-800' : 'w-full'}`}>
                 <div className={`${isStandalone ? 'container max-w-[900px] mx-auto relative' : 'relative'}`}>
 
-                    {/* ── SUCCESS NOTIFICATION BANNER ── */}
+                    {/* ── NOTIFICATION BANNER ── */}
                     {notification && (
                         <div 
-                            className="fixed top-20 -translate-x-1/2 z-[100] flex items-center gap-2 px-4 py-2 rounded-full bg-green-500 text-white text-sm font-medium shadow-lg animate-fade-in-up whitespace-nowrap"
+                            className="fixed top-20 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-2 rounded-full text-[var(--text-primary)] text-sm font-medium shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-[var(--border-color)] bg-[var(--bg-card)] animate-fade-in-up whitespace-nowrap"
                             style={{ 
                                 left: window.innerWidth >= 1024 
                                     ? `calc(${sidebarCollapsed ? '64px' : '272px'} + (100vw - ${sidebarCollapsed ? '64px' : '272px'}) / 2)` 
                                     : '50%' 
                             }}
                         >
-                            <FaCircleCheck className="text-white text-sm" />
+                            {notification === 'Image uploading...' ? (
+                                <span className="animate-spin inline-block w-4 h-4 border-2 border-[var(--text-secondary)] border-t-[var(--brand-primary)] rounded-full" />
+                            ) : notification === 'Image upload failed' ? (
+                                <FaXmark className="text-red-500 text-sm" />
+                            ) : (
+                                <FaCircleCheck className="text-green-500 dark:text-green-400 text-sm" />
+                            )}
                             {notification}
                         </div>
                     )}
