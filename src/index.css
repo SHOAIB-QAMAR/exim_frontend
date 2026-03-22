@@ -145,12 +145,17 @@ body {
 
     html,
     body {
+        height: 100dvh;
+        overflow: hidden;
         overscroll-behavior: none;
+        position: fixed;
+        width: 100%;
     }
 
     .app-container {
         height: 100dvh;
-        height: -webkit-fill-available;
+        width: 100%;
+        overflow: hidden;
     }
 
     .chat-area {
