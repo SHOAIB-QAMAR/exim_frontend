@@ -14,8 +14,8 @@ const WelcomeScreen = ({
     setFocusInput
 }) => (
     <div className="relative flex flex-col h-full bg-gradient-to-b from-[var(--bg-secondary)] via-[var(--bg-secondary)] to-[var(--bg-tertiary)]/30">
-        <div className="flex-1 overflow-y-auto custom-scrollbar w-full px-4 pb-4 pt-6 md:pt-0 md:flex md:flex-col md:justify-center md:items-center">
-            <div className="flex flex-col items-center w-full max-w-[1000px] mx-auto">
+        <div className="flex-1 flex flex-col justify-center items-center overflow-y-auto custom-scrollbar w-full px-4 pb-4">
+            <div className="flex flex-col items-center w-full max-w-[1000px]">
                 <h2 className="md:hidden text-[24px] font-semibold mb-6 text-center tracking-tight drop-shadow-sm bg-gradient-to-r from-[var(--brand-primary)] to-[var(--text-primary)] bg-clip-text text-transparent">
                     How can I help?
                 </h2>
