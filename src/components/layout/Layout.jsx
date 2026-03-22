@@ -127,9 +127,36 @@ const Layout = () => {
         openContextPanel({ title: 'Reference', type: 'link', content: url });
     };
 
+    // ==================== VISUAL VIEWPORT SYNC ====================
+    useEffect(() => {
+        const updateHeight = () => {
+            const vh = (window.visualViewport ? window.visualViewport.height : window.innerHeight) * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+        };
+        
+        updateHeight();
+        
+        window.addEventListener('resize', updateHeight);
+        if (window.visualViewport) {
+            window.visualViewport.addEventListener('resize', updateHeight);
+            window.visualViewport.addEventListener('scroll', updateHeight);
+        }
+        
+        return () => {
+            window.removeEventListener('resize', updateHeight);
+            if (window.visualViewport) {
+                window.visualViewport.removeEventListener('resize', updateHeight);
+                window.visualViewport.removeEventListener('scroll', updateHeight);
+            }
+        };
+    }, []);
+
     // ==================== RENDER ====================
     return (
-        <div className="app-container flex h-screen w-full bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300 overflow-hidden font-sans">
+        <div 
+            className="app-container flex w-full bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300 overflow-hidden font-sans"
+            style={{ height: 'calc(var(--vh, 1vh) * 100)' }}
+        >
             {/* Background Gradient */}
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle_at_center,var(--brand-primary),transparent_70%)] opacity-[0.15] blur-3xl pointer-events-none z-0"></div>
 

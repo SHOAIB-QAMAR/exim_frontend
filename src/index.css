@@ -145,6 +145,10 @@ body {
 
     html,
     body {
+        height: 100%;
+        width: 100%;
+        position: fixed;
+        overflow: hidden;
         overscroll-behavior: none;
     }
 
