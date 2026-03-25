@@ -35,9 +35,9 @@ const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComp
                             <img
                                 // Handle blob URLs (previews), absolute URLs (S3), and relative URLs (legacy)
                                 src={
-                                    msg.image.startsWith('blob:') || msg.image.startsWith('http') 
+                                msg.image.startsWith('blob:') || msg.image.startsWith('http') 
                                       ? msg.image 
-                                      : `${API_CONFIG.BASE_URL}${msg.image}`
+                                      : `${API_CONFIG.API_BASE_URL}${msg.image}`
                                 }
                                 alt="Attached"
                                 className="max-w-full max-h-36 rounded-lg mb-2 border border-[var(--border-color)] bg-black/5"
@@ -153,7 +153,12 @@ const ChatMessages = ({
     onLoadMore,
     saveScrollPosition,
     focusInput,
-    setFocusInput
+    setFocusInput,
+    selectedLang,
+    activeSessionId,
+    isVoiceMode,
+    setIsVoiceMode,
+    setLiveVoiceMessages
 }) => {
     // -------------------------------------------
     // REFS FOR DOM ACCESS AND MEASUREMENT
@@ -390,6 +395,11 @@ const ChatMessages = ({
                         selectedFile={selectedFile}
                         setSelectedFile={setSelectedFile}
                         disabled={disabled}
+                        selectedLang={selectedLang}
+                        activeSessionId={activeSessionId}
+                        isVoiceMode={isVoiceMode}
+                        setIsVoiceMode={setIsVoiceMode}
+                        setLiveVoiceMessages={setLiveVoiceMessages}
                     />
                 </div>
             </div>

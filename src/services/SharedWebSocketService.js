@@ -185,10 +185,24 @@ class SharedWebSocketService {
             // the local UUID. Use questionAnswer to route to the correct local session.
             if (!this.pendingRequests) this.pendingRequests = new Map();
             if (data.questionAnswer && this.pendingRequests.has(data.questionAnswer)) {
-                const localThreadId = this.pendingRequests.get(data.questionAnswer);
+                const requestInfo = this.pendingRequests.get(data.questionAnswer);
+                const localThreadId = typeof requestInfo === 'object' ? requestInfo.threadId : requestInfo;
                 if (localThreadId !== threadId) {
                     threadId = localThreadId;
                 }
+
+                // --- METRICS ---
+                if (typeof requestInfo === 'object' && requestInfo.startTime && !requestInfo.hasLoggedLatency) {
+                    const latency = performance.now() - requestInfo.startTime;
+                    const resSizeBytes = new Blob([typeof event.data === 'string' ? event.data : JSON.stringify(event.data)]).size;
+                    console.groupCollapsed(`📊 [Metrics] WebSocket Response: ${Math.round(latency)}ms`);
+                    console.log(`Latency: ${latency.toFixed(2)} ms`);
+                    console.log(`Payload Size: ${(resSizeBytes / 1024).toFixed(2)} KB (${resSizeBytes} bytes)`);
+                    console.groupEnd();
+                    requestInfo.hasLoggedLatency = true;
+                }
+                // ---------------
+
                 // Clean up once the stream is complete
                 const isDone = data.done === true ||
                     data.TextCompleted === true ||
@@ -243,8 +257,15 @@ class SharedWebSocketService {
             // Track questionAnswer → local threadId for routing responses back
             if (!this.pendingRequests) this.pendingRequests = new Map();
             if (parsed.questionAnswer) {
-                this.pendingRequests.set(parsed.questionAnswer, threadId);
+                this.pendingRequests.set(parsed.questionAnswer, { threadId, startTime: performance.now() });
             }
+
+            // --- METRICS ---
+            const reqSizeBytes = new Blob([JSON.stringify(parsed)]).size;
+            console.groupCollapsed(`📊 [Metrics] WebSocket Request`);
+            console.log(`Payload Size: ${(reqSizeBytes / 1024).toFixed(2)} KB (${reqSizeBytes} bytes)`);
+            console.groupEnd();
+            // ---------------
 
             console.log('[WS] → gpt_query', parsed);
             this.socket.emit('gpt_query', parsed);

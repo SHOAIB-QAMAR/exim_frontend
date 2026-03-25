@@ -116,7 +116,7 @@ const Sidebar = ({
 
     // Scroll persistence refs
     const historyScrollRef = useRef(null);
-    const savedScrollPosRef = useRef(0);
+    const savedScrollPosRef = useRef(parseInt(sessionStorage.getItem('sidebarScrollPos') || '0', 10));
 
     // Resilient scroll restoration effect
     useEffect(() => {
@@ -179,6 +179,7 @@ const Sidebar = ({
         // This prevents the browser from overwriting the saved position with 0 during unmount/shrink.
         if (scrollHeight > clientHeight + 5) {
             savedScrollPosRef.current = scrollTop;
+            sessionStorage.setItem('sidebarScrollPos', scrollTop.toString());
         }
 
         if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
@@ -198,52 +199,7 @@ const Sidebar = ({
     };
 
     // ── DATA PREPARATION ──
-
-    const groupedHistory = React.useMemo(() => {
-        // Initialize bucket structure
-        const groups = {
-            "Today": [],
-            "Yesterday": [],
-            "Previous 7 Days": [],
-            "Previous 30 Days": [],
-            "Older": []
-        };
-
-        // Determine critical timestamp boundaries for categorizing relative dates
-        const today = new Date();
-        today.setHours(0, 0, 0, 0); // Start of today (midnight)
-
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-
-        const last7Days = new Date(today);
-        last7Days.setDate(last7Days.getDate() - 7);
-
-        const last30Days = new Date(today);
-        last30Days.setDate(last30Days.getDate() - 30);
-
-        // Sort each thread into the appropriate bucket based on its timestamp
-        threads.forEach(thread => {
-            const threadDate = new Date(thread.updatedAt || thread.createdAt);
-            const dateCheck = new Date(threadDate.getFullYear(), threadDate.getMonth(), threadDate.getDate());
-
-            if (dateCheck.getTime() === today.getTime()) {
-                groups["Today"].push(thread);
-            } else if (dateCheck.getTime() === yesterday.getTime()) {
-                groups["Yesterday"].push(thread);
-            } else if (dateCheck >= last7Days) {
-                groups["Previous 7 Days"].push(thread);
-            } else if (dateCheck >= last30Days) {
-                groups["Previous 30 Days"].push(thread);
-            } else {
-                groups["Older"].push(thread);
-            }
-        });
-
-        // Convert the groups object into an array of [groupName, threadsArray] || Filter out any groups that have 0 threads so we don't render empty headers
-
-        return Object.entries(groups).filter(([_, list]) => list.length > 0);
-    }, [threads]);
+    // Grouping logic removed as requested to show a flat list.
 
     // ── RENDER HELPERS ──
 
@@ -251,7 +207,7 @@ const Sidebar = ({
         <div
             key={thread.threadId}
             className={`chat-item flex items-center p-1.5 rounded-lg cursor-pointer hover:bg-[var(--bg-tertiary)] transition-all group relative ${currThreadId === thread.threadId ? 'bg-[var(--bg-tertiary)]' : ''}`}
-            onClick={(e) => {
+            onClick={() => {
                 if (isLongPressing.current) {
                     isLongPressing.current = false;
                     return; // Prevent loading chat if the users interaction was a long press
@@ -479,23 +435,17 @@ const Sidebar = ({
                                         ↻ Retry
                                     </button>
                                 </div>
-                            ) : groupedHistory.length === 0 ? (
+                            ) : threads.length === 0 ? (
                                 /* Empty state */
                                 <div className="text-center text-sm text-[var(--text-secondary)] mt-4">
                                     No history
                                 </div>
                             ) : (
-                                /* Render Grouped History Array */
+                                /* Render Flat History List */
                                 <>
-                                    {groupedHistory.map(([groupName, groupThreads]) => (
-                                        <div key={groupName} className="mb-4">
-                                            <div className="chat-history-header mb-1">
-                                                <span className="text-xs font-semibold text-[var(--text-secondary)] tracking-wide">{groupName}</span>
-                                            </div>
-                                            {/* Render individual thread buttons within the group */}
-                                            {groupThreads.map((thread) => renderThreadItem(thread))}
-                                        </div>
-                                    ))}
+                                    <div className="space-y-1">
+                                        {threads.map((thread) => renderThreadItem(thread))}
+                                    </div>
 
                                     {/* Spinner shown at the bottom when `loadMore` is actively fetching old data */}
                                     {isFetchingMore && (

@@ -22,7 +22,7 @@ function AppContent() {
     );
   }
 
-  // Not logged in → show Login/Register
+  // Not logged in → show Login
   if (!isAuthenticated) {
     return <AuthPage />;
   }

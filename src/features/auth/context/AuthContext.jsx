@@ -1,7 +1,9 @@
+/* eslint-disable react-refresh/only-export-components */
 import React, { createContext, useContext, useState, useCallback } from 'react';
+import API_CONFIG from '../../../services/api.config';
 
 /* Global Context for Authentication state and methods.
- * Provides user information, JSON Web Token (JWT), and authentication actions (login, register, logout) to all nested components. */
+ * Provides user information, JSON Web Token (JWT), and authentication actions (login, logout) to all nested components. */
 const AuthContext = createContext(null);
 
 export const useAuth = () => {
@@ -30,7 +32,7 @@ export const AuthProvider = ({ children }) => {
 
     const login = useCallback(async (email, password) => {
         // Post to the external zipaworld customer login API
-        const response = await fetch(`https://finance.devapi.zipaworld.com/api/auth/customer/login`, {
+        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/auth/customer/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

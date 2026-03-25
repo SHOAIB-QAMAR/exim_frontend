@@ -14,7 +14,9 @@ export const useThreads = () => {
     const skipRef = useRef(0);
 
     const fetchThreads = useCallback(async (isLoadMore = false) => {
-        if (isLoadMore) {
+        const loadingMore = isLoadMore === true;
+        
+        if (loadingMore) {
             setIsFetchingMore(true);
         } else {
             setIsLoading(true);
@@ -47,7 +49,7 @@ export const useThreads = () => {
             }
         } catch {
 
-            setFetchError(isLoadMore ? 'Failed to load more chat history' : 'Failed to load chat history');
+            setFetchError(loadingMore ? 'Failed to load more chat history' : 'Failed to load chat history');
         } finally {
             setIsLoading(false);
             setIsFetchingMore(false);

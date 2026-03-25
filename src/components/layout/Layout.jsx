@@ -36,8 +36,9 @@ const Layout = () => {
         langOpen, setLangOpen
     } = useUI();
 
-    // ==================== LOCAL STATE ====================
     const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
+    const [isVoiceMode, setIsVoiceMode] = useState(false);
+    const [liveVoiceMessages, setLiveVoiceMessages] = useState([]);
 
     // ==================== DATA HOOKS ====================
     const { threads, fetchThreads, deleteThread, moveThreadToTop, isLoading: isThreadsLoading, fetchError, loadMore, hasMore, isFetchingMore } = useThreads();
@@ -180,7 +181,7 @@ const Layout = () => {
                 {/* Chat Area */}
                 <div className="chat-area flex-1 flex flex-col overflow-hidden bg-[var(--bg-secondary)] transition-colors duration-800 relative">
                     <div className={`flex-1 overflow-hidden w-full h-full relative ${(searchPanelOpen || showFAQ) ? 'blur-[16px] pointer-events-none' : ''}`}>
-                        {(activeSession.messages.length === 0 && activeSession.isNew) ? (
+                        {(activeSession.messages.length === 0 && activeSession.isNew && !isVoiceMode) ? (
                             <WelcomeScreen
                                 focusInput={focusInput}
                                 setFocusInput={setFocusInput}
@@ -191,12 +192,17 @@ const Layout = () => {
                                 selectedFile={activeSession.selectedFile}
                                 setSelectedFile={(file) => updateActiveSession({ selectedFile: file })}
                                 disabled={isAnyTabLoading}
+                                selectedLang={selectedLang}
+                                activeSessionId={activeSessionId}
+                                isVoiceMode={isVoiceMode}
+                                setIsVoiceMode={setIsVoiceMode}
+                                setLiveVoiceMessages={setLiveVoiceMessages}
                             />
                         ) : (
                             <ChatMessages
                                 focusInput={focusInput}
                                 setFocusInput={setFocusInput}
-                                messages={activeSession.messages}
+                                messages={isVoiceMode ? liveVoiceMessages : activeSession.messages}
                                 activeSession={activeSession}
                                 onTypingComplete={handleTypingComplete}
                                 onRetry={handleRetry}
@@ -207,10 +213,15 @@ const Layout = () => {
                                 selectedFile={activeSession.selectedFile}
                                 setSelectedFile={(file) => updateActiveSession({ selectedFile: file })}
                                 disabled={isAnyTabLoading}
-                                hasMoreMessages={activeSession.hasMoreMessages}
-                                isLoadingMore={activeSession.isLoadingMore}
+                                hasMoreMessages={isVoiceMode ? false : activeSession.hasMoreMessages}
+                                isLoadingMore={isVoiceMode ? false : activeSession.isLoadingMore}
                                 onLoadMore={loadMoreMessages}
                                 saveScrollPosition={saveScrollPosition}
+                                selectedLang={selectedLang}
+                                activeSessionId={activeSessionId}
+                                isVoiceMode={isVoiceMode}
+                                setIsVoiceMode={setIsVoiceMode}
+                                setLiveVoiceMessages={setLiveVoiceMessages}
                             />
                         )}
                     </div>

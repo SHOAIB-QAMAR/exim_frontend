@@ -11,7 +11,12 @@ const WelcomeScreen = ({
     setSelectedFile,
     disabled,
     focusInput,
-    setFocusInput
+    setFocusInput,
+    selectedLang,
+    activeSessionId,
+    isVoiceMode,
+    setIsVoiceMode,
+    setLiveVoiceMessages
 }) => (
     <div className="relative flex flex-col h-full bg-gradient-to-b from-[var(--bg-secondary)] via-[var(--bg-secondary)] to-[var(--bg-tertiary)]/30">
         <div className="flex-1 flex flex-col justify-center items-center overflow-y-auto custom-scrollbar w-full px-4 pb-4">
@@ -37,6 +42,11 @@ const WelcomeScreen = ({
                     selectedFile={selectedFile}
                     setSelectedFile={setSelectedFile}
                     disabled={disabled}
+                    selectedLang={selectedLang}
+                    activeSessionId={activeSessionId}
+                    isVoiceMode={isVoiceMode}
+                    setIsVoiceMode={setIsVoiceMode}
+                    setLiveVoiceMessages={setLiveVoiceMessages}
                 />
             </div>
         </div>

@@ -65,6 +65,8 @@ export const uploadImageToSupabase = async (file) => {
         const cleanFileName = file.name.replace(/[^a-zA-Z0-9.]/g, '_');
         const uniqueFileName = `uploads/${timestamp}_${cleanFileName}`;
 
+        const startTime = performance.now();
+
         // Upload to Supabase Storage
         const { error } = await supabase.storage
             .from(BUCKET_NAME)
@@ -73,6 +75,13 @@ export const uploadImageToSupabase = async (file) => {
                 upsert: false,
                 contentType: file.type
             });
+
+        const latency = performance.now() - startTime;
+        
+        console.groupCollapsed(`📊 [Metrics] Supabase Upload - ${Math.round(latency)}ms`);
+        console.log(`Latency: ${latency.toFixed(2)} ms`);
+        console.log(`File Size: ${(file.size / 1024).toFixed(2)} KB (${file.size} bytes)`);
+        console.groupEnd();
 
         if (error) {
             throw new Error(`Supabase Storage Error: ${error.message}`);
