@@ -24,6 +24,7 @@ import { useChatActions } from '../../features/chat/hooks/useChatActions';
 
 // Config
 import LANGUAGES from '../../config/languages';
+import useKeyboardHeight from '../../hooks/useKeyboardHeight';
 
 const Layout = () => {
     // ==================== UI CONTEXT ====================
@@ -39,6 +40,9 @@ const Layout = () => {
     const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
     const [isVoiceMode, setIsVoiceMode] = useState(false);
     const [liveVoiceMessages, setLiveVoiceMessages] = useState([]);
+
+    // Writes --keyboard-height CSS variable whenever the virtual keyboard appears/disappears
+    useKeyboardHeight();
 
     // ==================== DATA HOOKS ====================
     const { threads, fetchThreads, deleteThread, moveThreadToTop, isLoading: isThreadsLoading, fetchError, loadMore, hasMore, isFetchingMore } = useThreads();

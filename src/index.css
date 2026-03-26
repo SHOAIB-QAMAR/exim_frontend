@@ -177,7 +177,7 @@ body {
     }
 }
 
-@media (max-width: 768px) {
+@media (max-width: 767px) {
     html,
     body {
         overscroll-behavior: none;
@@ -194,6 +194,15 @@ body {
         justify-content: center;
         align-items: center;
         flex: 1;
+    }
+
+    /* When the virtual keyboard opens, the JS hook writes --keyboard-height.
+       Padding the content column by that amount causes the flex layout to
+       naturally push the input (shrink-0) up above the keyboard,
+       while the header at the top stays fixed and untouched. */
+    .content {
+        padding-bottom: var(--keyboard-height, 0px);
+        transition: padding-bottom 0.15s ease;
     }
 }
 
