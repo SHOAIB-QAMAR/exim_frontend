@@ -155,10 +155,13 @@ body {
 
 /* On mobile: remove all outer padding — input fills edge-to-edge */
 @media (max-width: 767px) {
+
     /* ── LOCK THE DOCUMENT ──
        Prevents the browser from scrolling the document body. 
        Essential for 'Shrink to Fit' strategy. */
-    html, body, #root {
+    html,
+    body,
+    #root {
         height: 100%;
         height: var(--app-height, 100%);
         overflow: hidden !important;
@@ -216,7 +219,8 @@ body {
     .content {
         height: 100%;
         overflow: hidden;
-        padding-bottom: 0 !important; /* Remove manual padding */
+        padding-bottom: 0 !important;
+        /* Remove manual padding */
     }
 }
 
@@ -320,12 +324,12 @@ body {
 
 /* RESPONSE SECTION */
 .response-section {
-    line-height: 1.7;
+    line-height: inherit;
     color: var(--text-primary);
 }
 
 .response-content {
-    font-size: 15px;
+    font-size: inherit;
     color: var(--text-primary);
 }
 
@@ -367,7 +371,7 @@ body {
 
 .response-content p {
     margin: 12px 0;
-    line-height: 1.7;
+    line-height: inherit;
 }
 
 .response-content strong {

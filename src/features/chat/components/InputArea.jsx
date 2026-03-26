@@ -24,22 +24,17 @@ function LiveKitEventBridge({ setLiveVoiceMessages, selectedLang }) {
     const segmentTracker = useRef(new Map());
     const prevLangRef = useRef(selectedLang?.name);
 
-    // Flawlessly transmit Language changes to the AI Agent natively over the active connection
+    // Flawlessly transmit Language changes to the AI Agent over the active connection
     useEffect(() => {
         if (!room || !selectedLang?.name || !room.localParticipant) return;
 
         if (selectedLang.name !== prevLangRef.current) {
             prevLangRef.current = selectedLang.name;
             try {
+                // Translate that converts a user-friendly display name into a machine-readable standard.
                 const bcp47Code = getLanguageCode(selectedLang.name);
 
-                // 1. LiveKit Participant Attributes (The modern standard for LiveKit Agents)
-                if (typeof room.localParticipant.setAttributes === 'function') {
-                    room.localParticipant.setAttributes({ language: bcp47Code, user_lang: bcp47Code }).catch(() => { });
-                    console.log(`Sent language "${bcp47Code}" via LiveKit participant attributes.`);
-                }
-
-                // 2. LiveKit RPC Text Stream (The exact requested format from the Zipaworld python backend source code!)
+                // LiveKit Text Stream (The exact requested format from the Zipaworld python backend source code!)
                 if (typeof room.localParticipant.streamText === 'function') {
                     room.localParticipant.streamText({ topic: 'user_lang' }).then(async (streamWriter) => {
                         await streamWriter.write(bcp47Code);
@@ -105,8 +100,7 @@ function LiveKitEventBridge({ setLiveVoiceMessages, selectedLang }) {
 // ==========================================
 // 2. Custom Voice UI (Runs inside Room)
 // ==========================================
-// Exact replica of the previously built custom
-// graphical UI layout, powered simply by props.
+
 function VoiceCallUI({ handleVoiceCancel, isVoiceConnected, soundEnabled, toggleSound }) {
     const [audioData, setAudioData] = useState(new Array(30).fill(10));
     const { isMicrophoneEnabled, localParticipant } = useLocalParticipant();
