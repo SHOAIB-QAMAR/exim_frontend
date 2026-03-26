@@ -71,10 +71,12 @@ const Tooltip = ({
     // ── EVENT LISTENERS FOR DYNAMIC REPOSITIONING ──
     useEffect(() => {
         if (isVisible) {
-            updatePosition();
-
+            // Wrapping in requestAnimationFrame avoids the "cascading render" lint warning
+            // by deferring the state update until the browser is ready to paint.
+            requestAnimationFrame(updatePosition);
+ 
             window.addEventListener('resize', updatePosition);
-
+ 
             // Using `true` for useCapture allows catching scroll events from any nested scrollable child elements.
             window.addEventListener('scroll', updatePosition, true);
         }
@@ -88,7 +90,7 @@ const Tooltip = ({
     // ── DISABLE OVERRIDE CLEANUP ──
     useEffect(() => {
         if (disabled && isVisible) {
-            setIsVisible(false);
+            requestAnimationFrame(() => setIsVisible(false));
             if (timerRef.current) clearTimeout(timerRef.current);
         }
     }, [disabled, isVisible]);

@@ -1,4 +1,5 @@
 import API_CONFIG from './api.config';
+import { getLanguageCode } from '../config/languages';
 
 class ChatService {
 
@@ -216,21 +217,7 @@ class ChatService {
 
         const device = navigator.platform.includes('Mac') ? 'macOS' : (navigator.platform.includes('Win') ? 'Windows' : navigator.platform);
 
-        const getLanguageCode = (name) => {
-            const map = {
-                "English (IN)": "en-IN", "Hindi": "hi-IN", "Marathi": "mr-IN", "Gujarati": "gu-IN",
-                "Malayalam": "ml-IN", "Tamil": "ta-IN", "Telugu": "te-IN", "Urdu": "ur-IN",
-                "Arabic": "ar-SA", "Chinese": "zh-CN", "Spanish": "es-ES", "French": "fr-FR",
-                "German": "de-DE", "Russian": "ru-RU", "Italian": "it-IT", "Indonesian": "id-ID",
-                "Korean": "ko-KR", "Hebrew": "he-IL", "Dutch": "nl-NL", "Polish": "pl-PL",
-                "Danish": "da-DK", "Swedish": "sv-SE", "Turkish": "tr-TR", "Portuguese": "pt-PT",
-                "Czech": "cs-CZ", "Portuguese (BR)": "pt-BR", "Finnish": "fi-FI", "Greek": "el-GR",
-                "Hungarian": "hu-HU", "Thai": "th-TH", "Bulgarian": "bg-BG", "Malay": "ms-MY",
-                "Slovenian": "sl-SI", "Ukrainian": "uk-UA", "Croatian": "hr-HR", "Romania": "ro-RO",
-                "Japanese": "ja-JP"
-            };
-            return map[name] || "en-IN";
-        };
+
 
         const mappedLangCode = getLanguageCode(lang);
 

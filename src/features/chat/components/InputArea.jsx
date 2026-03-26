@@ -6,6 +6,7 @@ import { useUI } from '../../../providers/UIContext';
 import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark } from "react-icons/fa6";
 import { validateImage, compressImage, uploadImageToSupabase } from '../../../services/uploadService';
 import chatService from '../../../services/chat.service';
+import { getLanguageCode } from '../../../config/languages';
 
 // --- LiveKit Official Libraries ---
 import { RoomEvent } from 'livekit-client';
@@ -15,24 +16,9 @@ import '@livekit/components-styles';
 // ==========================================
 // 1. LiveKit Event Bridge (Runs inside Room)
 // ==========================================
-const getLanguageCode = (name) => {
-    const map = {
-        "English (IN)": "en-IN", "Hindi": "hi-IN", "Marathi": "mr-IN", "Gujarati": "gu-IN",
-        "Malayalam": "ml-IN", "Tamil": "ta-IN", "Telugu": "te-IN", "Urdu": "ur-IN",
-        "Arabic": "ar-SA", "Chinese": "zh-CN", "Spanish": "es-ES", "French": "fr-FR",
-        "German": "de-DE", "Russian": "ru-RU", "Italian": "it-IT", "Indonesian": "id-ID",
-        "Korean": "ko-KR", "Hebrew": "he-IL", "Dutch": "nl-NL", "Polish": "pl-PL",
-        "Danish": "da-DK", "Swedish": "sv-SE", "Turkish": "tr-TR", "Portuguese": "pt-PT",
-        "Czech": "cs-CZ", "Portuguese (BR)": "pt-BR", "Finnish": "fi-FI", "Greek": "el-GR",
-        "Hungarian": "hu-HU", "Thai": "th-TH", "Bulgarian": "bg-BG", "Malay": "ms-MY",
-        "Slovenian": "sl-SI", "Ukrainian": "uk-UA", "Croatian": "hr-HR", "Romania": "ro-RO",
-        "Japanese": "ja-JP"
-    };
-    return map[name] || "en-IN";
-};
 
-// Subscribes cleanly to Room events and maps
-// transcriptions directly into our React state.
+
+// Subscribes cleanly to Room events and maps transcriptions directly into our React state.
 function LiveKitEventBridge({ setLiveVoiceMessages, selectedLang }) {
     const room = useRoomContext();
     const segmentTracker = useRef(new Map());
@@ -46,22 +32,14 @@ function LiveKitEventBridge({ setLiveVoiceMessages, selectedLang }) {
             prevLangRef.current = selectedLang.name;
             try {
                 const bcp47Code = getLanguageCode(selectedLang.name);
-                
-                // We broadcast three robust payload schemas to absolutely guarantee the backend STT Agent picks it up:
-                // 1. JSON payload Map 
-                const jsonPayload = new TextEncoder().encode(JSON.stringify({ language: bcp47Code, user_lang: bcp47Code }));
-                room.localParticipant.publishData(jsonPayload, { reliable: true }).catch(()=>{});
-                
-                // 2. Raw String (A common standard for basic setups)
-                const strPayload = new TextEncoder().encode(bcp47Code);
-                room.localParticipant.publishData(strPayload, { reliable: true }).catch(()=>{});
 
-                // 3. LiveKit Participant Attributes (The modern standard for LiveKit Agents)
+                // 1. LiveKit Participant Attributes (The modern standard for LiveKit Agents)
                 if (typeof room.localParticipant.setAttributes === 'function') {
-                    room.localParticipant.setAttributes({ language: bcp47Code, user_lang: bcp47Code }).catch(()=>{});
+                    room.localParticipant.setAttributes({ language: bcp47Code, user_lang: bcp47Code }).catch(() => { });
+                    console.log(`Sent language "${bcp47Code}" via LiveKit participant attributes.`);
                 }
 
-                // 4. LiveKit RPC Text Stream (The exact requested format from the Zipaworld python backend source code!)
+                // 2. LiveKit RPC Text Stream (The exact requested format from the Zipaworld python backend source code!)
                 if (typeof room.localParticipant.streamText === 'function') {
                     room.localParticipant.streamText({ topic: 'user_lang' }).then(async (streamWriter) => {
                         await streamWriter.write(bcp47Code);
@@ -69,10 +47,8 @@ function LiveKitEventBridge({ setLiveVoiceMessages, selectedLang }) {
                         console.log(`Successfully piped text stream for "user_lang" directly to backend.`);
                     }).catch(e => console.warn('StreamText error:', e));
                 }
-                
-                console.log(`Selected Language: ${bcp47Code}`);
-                console.log(`Sent language "${bcp47Code}" via LiveKit  header`);
-            } catch(e) {
+
+            } catch (e) {
                 console.error('Data channel language switch failed:', e);
             }
         }
