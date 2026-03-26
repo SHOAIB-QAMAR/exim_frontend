@@ -153,15 +153,40 @@ body {
     padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
 }
 
-/* On mobile: remove all outer padding — input fills edge-to-edge */
 @media (max-width: 767px) {
+    /* ── LOCK THE DOCUMENT ──
+       overflow:hidden prevents the browser from scrolling the page when the
+       input is focused. Without this, Chrome scrolls the document upward to
+       reveal the input, creating the gap between content and keyboard.
+       position:fixed;inset:0 on .app-container then shrinks with the keyboard
+       (resizes-content default), keeping header at top + input at bottom. */
+    html {
+        height: 100%;
+        overflow: hidden;
+    }
+
+    body {
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
+    }
+
+    #root {
+        height: 100%;
+        overflow: hidden;
+    }
+
+    /* ── REMOVE OUTER PADDING FROM INPUT ── */
     .input-area {
         padding: 0 !important;
         padding-bottom: env(safe-area-inset-bottom, 0px) !important;
     }
 
-    /* Anchor the whole app so the keyboard can't displace the layout.
-       Works as a fallback where interactive-widget=resizes-visual is not supported. */
+    /* ── ANCHOR THE APP CONTAINER ──
+       position:fixed;inset:0;height:auto — the element spans exactly from
+       viewport top to viewport bottom. With resizes-content (default Chrome),
+       bottom:0 moves to the top of the keyboard, auto-shrinking the container.
+       No JS needed; the browser handles the resize natively. */
     .app-container {
         position: fixed !important;
         top: 0;
@@ -171,16 +196,9 @@ body {
         height: auto !important;
     }
 
-    /* Sidebar also must fill the same fixed area */
+    /* Sidebar fills the same fixed area on mobile */
     .sidebar {
         height: 100% !important;
-    }
-}
-
-@media (max-width: 767px) {
-    html,
-    body {
-        overscroll-behavior: none;
     }
 
     .chat-area {
@@ -194,15 +212,6 @@ body {
         justify-content: center;
         align-items: center;
         flex: 1;
-    }
-
-    /* When the virtual keyboard opens, the JS hook writes --keyboard-height.
-       Padding the content column by that amount causes the flex layout to
-       naturally push the input (shrink-0) up above the keyboard,
-       while the header at the top stays fixed and untouched. */
-    .content {
-        padding-bottom: var(--keyboard-height, 0px);
-        transition: padding-bottom 0.15s ease;
     }
 }
 
