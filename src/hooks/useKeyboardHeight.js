@@ -18,17 +18,14 @@ const useKeyboardHeight = () => {
         if (!vv) return; // Desktop / unsupported — no-op
 
         const update = () => {
-            /** 
-             * --app-height: The actual visible height of the browser's 
-             * drawing area, excluding the virtual keyboard.
-             * 
-             * By setting this on the root element, we can force the 
-             * app container to 'shrink' to fit the space above the 
-             * keyboard, preventing the browser from scrolling the 
-             * page body and creating gaps.
-             */
-            const appHeight = vv.height;
-            document.documentElement.style.setProperty('--app-height', `${appHeight}px`);
+            // Keyboard height = full layout height minus the visible visual viewport height.
+            // We deliberately do NOT subtract vv.offsetTop here: that value represents
+            // how much the browser has scrolled the visual viewport upward to keep the
+            // focused input in view — it is NOT part of the keyboard size. Including it
+            // caused the padding-bottom to be massively over-inflated on the second focus,
+            // pushing the header off screen.
+            const keyboardHeight = Math.max(0, window.innerHeight - vv.height);
+            document.documentElement.style.setProperty('--keyboard-height', `${keyboardHeight}px`);
         };
 
         vv.addEventListener('resize', update);
@@ -41,7 +38,7 @@ const useKeyboardHeight = () => {
             vv.removeEventListener('resize', update);
             vv.removeEventListener('scroll', update);
             // Reset on unmount
-            document.documentElement.style.removeProperty('--app-height');
+            document.documentElement.style.removeProperty('--keyboard-height');
         };
     }, []);
 };

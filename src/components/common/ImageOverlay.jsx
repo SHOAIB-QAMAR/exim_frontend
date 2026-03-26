@@ -22,8 +22,8 @@ const ImageOverlay = ({ isOpen, imageUrl, onClose }) => {
     const positionClass = isChatArea ? 'absolute inset-0' : 'fixed inset-0';
 
     const modalContent = (
-        <div
-            className={`${positionClass} z-[10000] bg-[var(--bg-primary)]/60 backdrop-blur-3xl animate-in fade-in duration-300 flex items-center justify-center p-4`}
+        <div 
+            className={`${positionClass} z-[10000] bg-[var(--bg-primary)]/60 backdrop-blur animate-in fade-in duration-300 flex items-center justify-center p-4`}
             onClick={onClose}
         >
             <button
