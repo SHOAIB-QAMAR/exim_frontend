@@ -159,6 +159,22 @@ body {
         padding: 0 !important;
         padding-bottom: env(safe-area-inset-bottom, 0px) !important;
     }
+
+    /* Anchor the whole app so the keyboard can't displace the layout.
+       Works as a fallback where interactive-widget=resizes-visual is not supported. */
+    .app-container {
+        position: fixed !important;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: auto !important;
+    }
+
+    /* Sidebar also must fill the same fixed area */
+    .sidebar {
+        height: 100% !important;
+    }
 }
 
 @media (max-width: 768px) {
