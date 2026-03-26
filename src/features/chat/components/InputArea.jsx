@@ -446,7 +446,7 @@ const InputArea = ({
             )}
 
             {/* ── MAIN INPUT AREA ── */}
-            <div className={`${isStandalone ? 'input-area shrink-0 px-4 pt-4 bg-[var(--bg-primary)] border-t border-[var(--border-color)] transition-colors duration-800' : 'w-full'}`}>
+            <div className={`${isStandalone ? 'input-area shrink-0 px-0 pt-0 md:px-4 md:pt-4 bg-[var(--bg-primary)] border-t border-[var(--border-color)] transition-colors duration-800' : 'w-full'}`}>
                 <div className={`${isStandalone ? 'container max-w-[900px] mx-auto relative' : 'relative'}`}>
 
                     {/* ── NOTIFICATION BANNER ── */}
@@ -535,7 +535,7 @@ const InputArea = ({
                                 )}
 
                                 {/* ── INPUT ROW (+ button, textarea, action buttons) ── */}
-                                <div className="flex items-end gap-2 p-3">
+                                <div className="flex items-end gap-2 p-2 md:p-3">
                                     {/* "+" Menu Button */}
                                     <div className="relative shrink-0 mb-0.5" ref={menuRef}>
                                         <button
