@@ -2,8 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { v1 as uuidv1 } from 'uuid';
 import ChatService from '../../../services/chat.service';
 
-/** Maximum concurrent active sessions before LRU eviction */
-const MAX_ACTIVE_SESSIONS = 6;
 const STORAGE_KEY_SESSIONS = 'CHATS_ACTIVE_SESSIONS';
 const STORAGE_KEY_ACTIVE_ID = 'CHATS_ACTIVE_SESSION_ID';
 
@@ -75,29 +73,13 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
         setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, ...fields } : s));
     };
 
-    // Removes the least recently used session (excluding active)
-
-    const removeLRUSession = (sessions, currentActiveId) => {
-        const candidates = sessions.filter(s => s.id !== currentActiveId);
-        if (candidates.length === 0) return sessions;
-
-        const lru = candidates.reduce((oldest, s) =>
-            s.lastAccessedAt < oldest.lastAccessedAt ? s : oldest
-        );
-        return sessions.filter(s => s.id !== lru.id);
-    };
-
     // Creates a new chat session 
     const handleNewChat = () => {
         try {
             const newSession = createSession();
 
-            setActiveSessions(prev => {
-                let updated = prev.length >= MAX_ACTIVE_SESSIONS
-                    ? removeLRUSession(prev, activeSessionId)
-                    : prev;
-                return [...updated, newSession];
-            });
+            setActiveSessions(prev => [...prev, newSession]);
+
 
             setActiveSessionId(newSession.id);
             closeMobileSidebar?.();
@@ -162,12 +144,7 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
             // Create new session with loading state. Set isNew to false because we are loading from history.
             const newSession = { ...createSession(threadId, "Loading..."), objectId, isThinking: true, isNew: false };
 
-            setActiveSessions(prev => {
-                let updated = prev.length >= MAX_ACTIVE_SESSIONS
-                    ? removeLRUSession(prev, activeSessionId)
-                    : prev;
-                return [...updated, newSession];
-            });
+            setActiveSessions(prev => [...prev, newSession]);
             setActiveSessionId(threadId);
             console.log(`[Chat] Opened thread: ${threadId}`);
             closeMobileSidebar?.();

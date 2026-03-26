@@ -130,7 +130,7 @@ const Layout = () => {
 
     // ==================== RENDER ====================
     return (
-        <div className="app-container flex h-screen w-full bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300 overflow-hidden font-sans">
+        <div className="app-container flex h-[100dvh] w-full bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300 overflow-hidden font-sans">
             {/* Background Gradient */}
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle_at_center,var(--brand-primary),transparent_70%)] opacity-[0.15] blur-3xl pointer-events-none z-0"></div>
 
@@ -157,7 +157,7 @@ const Layout = () => {
             />
 
             {/* Main Content */}
-            <div className="content flex-1 flex flex-col h-screen overflow-hidden relative transition-colors duration-800">
+            <div className="content flex-1 flex flex-col h-[100dvh] overflow-hidden relative transition-colors duration-800">
 
                 <Header
                     toggleMobileSidebar={toggleMobileSidebar}

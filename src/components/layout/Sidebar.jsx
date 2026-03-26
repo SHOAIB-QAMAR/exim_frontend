@@ -307,7 +307,7 @@ const Sidebar = ({
     return (
         <>
             <div
-                className={`sidebar h-screen flex flex-col justify-between overflow-hidden border-r border-[var(--border-color)] bg-[var(--bg-sidebar)] text-[var(--text-primary)] transition-all duration-300 ease-in-out fixed lg:relative z-50
+                className={`sidebar flex flex-col justify-between overflow-hidden border-r border-[var(--border-color)] bg-[var(--bg-sidebar)] text-[var(--text-primary)] transition-all duration-300 ease-in-out fixed lg:relative z-50
           ${isExpanded ? 'w-68' : 'w-16'} 
           ${isOpenMobile ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}

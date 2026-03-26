@@ -446,7 +446,7 @@ const InputArea = ({
             )}
 
             {/* ── MAIN INPUT AREA ── */}
-            <div className={`${isStandalone ? 'input-area shrink-0 px-4 py-4 bg-[var(--bg-primary)] border-t border-[var(--border-color)] transition-colors duration-800' : 'w-full'}`}>
+            <div className={`${isStandalone ? 'input-area shrink-0 px-4 pt-4 bg-[var(--bg-primary)] border-t border-[var(--border-color)] transition-colors duration-800' : 'w-full'}`}>
                 <div className={`${isStandalone ? 'container max-w-[900px] mx-auto relative' : 'relative'}`}>
 
                     {/* ── NOTIFICATION BANNER ── */}

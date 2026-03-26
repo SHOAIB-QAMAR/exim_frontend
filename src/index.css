@@ -134,23 +134,29 @@ body {
     }
 }
 
-/* Viewport Handling */
-@supports (height: 100dvh) {
-    .app-container {
-        height: 100dvh;
-    }
+/* Viewport Handling — always use dynamic viewport height so the layout
+   contracts correctly when the mobile browser chrome (address bar) appears */
+.app-container {
+    /* Fallback for browsers without dvh support */
+    height: 100vh;
+    /* Dynamic viewport height: shrinks when browser chrome is visible */
+    height: 100dvh;
+}
+
+.sidebar {
+    /* Mirror the app container height */
+    height: 100dvh;
+}
+
+/* Input area: respect the safe-area (iOS notch / Android nav bar) at the bottom */
+.input-area {
+    padding-bottom: max(16px, env(safe-area-inset-bottom, 16px));
 }
 
 @media (max-width: 768px) {
-
     html,
     body {
         overscroll-behavior: none;
-    }
-
-    .app-container {
-        height: 100dvh;
-        height: -webkit-fill-available;
     }
 
     .chat-area {

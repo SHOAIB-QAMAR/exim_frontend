@@ -11,7 +11,7 @@ import ImageOverlay from '../../../components/common/ImageOverlay';
  * Wrapped in React.memo to prevent unnecessary re-renders when other messages update, significantly improving performance for long chat histories.
  * @param {Object} props || @param {Object} props.msg - The message object containing role, content, image, and status flags || @param {number} props.idx - The index of this message in the messages array || @param {Array} props.messages - The full array of messages in the current session || @param {Object} props.activeSession - The current chat session object (contains metrics, thinking states) || @param {Function} props.onTypingComplete - Callback fired when a streaming text effect finishes || @param {Function} props.onRetry - Callback to retry sending a failed message || @param {Function} props.onLinkClick - Callback fired when a link inside a message is clicked || @param {Function} props.scrollToBottom - Callback to force the container to scroll to the bottom during typing */
 
-const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComplete, onRetry, onLinkClick, onImageClick, scrollToBottom }) => {
+const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComplete, onLinkClick, onImageClick, scrollToBottom }) => {
 
     const isLastAssistantMsg = msg.role === 'assistant' && idx === messages.length - 1;
 
@@ -86,17 +86,10 @@ const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComp
                                 <MessageContent content={msg.content} onLinkClick={onLinkClick} />
                             )}
 
-                            {/* Show Retry button if the message failed or timed out during generation */}
+                            {/* Show timeout warning if the message failed or timed out during generation */}
                             {(msg.isTimeout || msg.content?.startsWith('Error:')) && (
-                                <div className="flex items-center gap-2.5 mt-3 pt-2.5 border-t border-[var(--border-color)]">
-                                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[var(--brand-primary)]"></span>
-                                    <span className="text-xs text-[var(--text-secondary)]">Failed to get response</span>
-                                    <button
-                                        onClick={() => onRetry(idx)}
-                                        className="px-3 py-1 rounded-md text-xs font-medium bg-[var(--bg-tertiary)] border border-[var(--border-color)] hover:bg-[var(--brand-primary)]/20 hover:border-[var(--brand-primary)]/30 text-[var(--text-primary)] hover:text-[var(--brand-primary)] transition-all duration-200 cursor-pointer"
-                                    >
-                                        ↻ Retry
-                                    </button>
+                                <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-[var(--border-color)]">
+                                    <span className="text-xs text-[var(--text-secondary)]">⚠️ Response timed out. The server may be busy or unavailable. Please try again.</span>
                                 </div>
                             )}
                         </div>
@@ -373,7 +366,6 @@ const ChatMessages = ({
                                     messages={messages}
                                     activeSession={activeSession}
                                     onTypingComplete={onTypingComplete}
-                                    onRetry={onRetry}
                                     onLinkClick={onLinkClick}
                                     onImageClick={setPreviewImage}
                                     scrollToBottom={handleTypingScroll}
