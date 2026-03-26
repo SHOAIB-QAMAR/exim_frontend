@@ -1,6 +1,7 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import Webcam from 'react-webcam';
 import Tooltip from '../../../components/common/Tooltip';
+import ImageOverlay from '../../../components/common/ImageOverlay';
 import { useUI } from '../../../providers/UIContext';
 import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark } from "react-icons/fa6";
 import { validateImage, compressImage, uploadImageToSupabase } from '../../../services/uploadService';
@@ -58,6 +59,15 @@ function LiveKitEventBridge({ setLiveVoiceMessages, selectedLang }) {
                 // 3. LiveKit Participant Attributes (The modern standard for LiveKit Agents)
                 if (typeof room.localParticipant.setAttributes === 'function') {
                     room.localParticipant.setAttributes({ language: bcp47Code, user_lang: bcp47Code }).catch(()=>{});
+                }
+
+                // 4. LiveKit RPC Text Stream (The exact requested format from the Zipaworld python backend source code!)
+                if (typeof room.localParticipant.streamText === 'function') {
+                    room.localParticipant.streamText({ topic: 'user_lang' }).then(async (streamWriter) => {
+                        await streamWriter.write(bcp47Code);
+                        await streamWriter.close();
+                        console.log(`Successfully piped text stream for "user_lang" directly to backend.`);
+                    }).catch(e => console.warn('StreamText error:', e));
                 }
                 
                 console.log(`Selected Language: ${bcp47Code}`);
@@ -225,6 +235,7 @@ const InputArea = ({
     const [showAttachMenu, setShowAttachMenu] = useState(false);
     const [showCamera, setShowCamera] = useState(false);
     const [facingMode, setFacingMode] = useState('environment');
+    const [showImageOverlay, setShowImageOverlay] = useState(false);
 
     const [notification, setNotification] = useState(null);
     const notificationTimer = useRef(null);
@@ -392,6 +403,7 @@ const InputArea = ({
 
     return (
         <>
+            <ImageOverlay isOpen={showImageOverlay} imageUrl={previewUrl} onClose={() => setShowImageOverlay(false)} />
             {/* ── CAMERA OVERLAY MODAL ── */}
             {showCamera && (
                 <div className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center">
@@ -507,7 +519,8 @@ const InputArea = ({
                                             <img
                                                 src={previewUrl}
                                                 alt="Selected"
-                                                className="h-24 max-w-[200px] object-cover rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm"
+                                                onClick={() => setShowImageOverlay(true)}
+                                                className="h-24 max-w-[200px] object-cover rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
                                             />
                                             <button
                                                 type="button"

@@ -2,11 +2,13 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
+import ImageOverlay from '../../../components/common/ImageOverlay';
 
 // Renders raw markdown text into safe, stylized HTML components. Configured with Github Flavored Markdown (tables, strikethrough, task lists) and sanitized to prevent Cross-Site Scripting (XSS) attacks.
 // @param {Object} props || @param {string} props.content - The raw markdown text to render || @param {function} props.onLinkClick - Callback fired when a human clicks an external link
  
 const MessageContent = ({ content, onLinkClick }) => {
+    const [previewImage, setPreviewImage] = useState(null);
 
     // Memoize the custom markdown component overrides so ReactMarkdown doesn't unnecessarily remount the entire DOM tree on every single keystroke or stream chunk.
     const components = useMemo(() => ({
@@ -40,6 +42,17 @@ const MessageContent = ({ content, onLinkClick }) => {
             );
         },
 
+        // Custom Image Handler
+        img: ({ src, alt, ...rest }) => (
+            <img
+                src={src}
+                alt={alt}
+                className="cursor-pointer max-w-full rounded-md mt-2 mb-2 hover:opacity-90 transition-opacity border border-[var(--border-color)]/50 shadow-sm"
+                onClick={() => setPreviewImage(src)}
+                {...rest}
+            />
+        ),
+
         // Custom List Item Handler (Adding styling support for Github-style Task Lists)
         li: ({ children, ...props }) => {
             // Check if the rendered list item contains a checkbox <input> as its exact first child
@@ -70,12 +83,18 @@ const MessageContent = ({ content, onLinkClick }) => {
     }), [onLinkClick]);
 
     return (
-        <div className="response-section">
+        <div className="response-section relative">
             <div className="response-content">
                 <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={components}>
                     {content}
                 </ReactMarkdown>
             </div>
+            
+            <ImageOverlay 
+                isOpen={!!previewImage} 
+                imageUrl={previewImage} 
+                onClose={() => setPreviewImage(null)} 
+            />
         </div>
     );
 };

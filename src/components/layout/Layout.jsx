@@ -179,7 +179,7 @@ const Layout = () => {
                 </div>
 
                 {/* Chat Area */}
-                <div className="chat-area flex-1 flex flex-col overflow-hidden bg-[var(--bg-secondary)] transition-colors duration-800 relative">
+                <div id="chat-area-container" className="chat-area flex-1 flex flex-col overflow-hidden bg-[var(--bg-secondary)] transition-colors duration-800 relative">
                     <div className={`flex-1 overflow-hidden w-full h-full relative ${(searchPanelOpen || showFAQ) ? 'blur-[16px] pointer-events-none' : ''}`}>
                         {(activeSession.messages.length === 0 && activeSession.isNew && !isVoiceMode) ? (
                             <WelcomeScreen

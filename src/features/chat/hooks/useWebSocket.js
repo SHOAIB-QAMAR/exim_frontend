@@ -5,12 +5,13 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
     const webSocketService = useWebSocketService();
     const connectedThreadsRef = useRef(new Set());
     const hasSentMessageRef = useRef(false); // Only refresh thread list after user sends a new message
+    const pendingChunksRef = useRef({}); // Buffer for debouncing text streams
+    const streamTimerRef = useRef(null);
     const activeThreadIds = activeSessions.map(s => s.id).join(',');
 
     // Handles incoming WebSocket messages (streaming chunks or complete messages)
 
     const handleMessage = useCallback((threadId, data) => {
-
 
         try {
             if (!threadId) {
@@ -23,12 +24,80 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
             let shouldMoveToTop = false;
             let moveToTopId = null;
 
+            // --- PENDING CHUNK INTERCEPT FOR UI DEBOUNCING ---
+            const legacyDoneCondition = data.done === true || data.TextCompleted === true || (typeof data.response === 'string' && data.response.includes('@//done//@'));
+            const isPureLegacyChunk = (data.chunk || data.response) && !legacyDoneCondition && !data.reply;
+            const isPureAdvancedChunk = data.type === 'message_chunk';
+
+            if (isPureLegacyChunk || isPureAdvancedChunk) {
+                const legacyChunkText = data.chunk || data.response || '';
+                const cleanLegacyChunk = typeof legacyChunkText === 'string' ? legacyChunkText.replace('@//done//@', '') : legacyChunkText;
+                
+                const chunkToAppend = isPureAdvancedChunk ? data.content : cleanLegacyChunk;
+
+                if (chunkToAppend) {
+                    pendingChunksRef.current[threadId] = (pendingChunksRef.current[threadId] || '') + chunkToAppend;
+
+                    if (!streamTimerRef.current) {
+                        streamTimerRef.current = setTimeout(() => {
+                            const snapshot = { ...pendingChunksRef.current };
+                            pendingChunksRef.current = {};
+                            streamTimerRef.current = null;
+
+                            setActiveSessions(prev => prev.map(session => {
+                                const pending = snapshot[session.id];
+                                if (!pending) return session;
+
+                                const msgs = [...session.messages];
+                                const lastIdx = msgs.length - 1;
+                                let lMsg = msgs[lastIdx];
+
+                                if (lMsg?.role === 'assistant' && lMsg.isStreaming) {
+                                  msgs[lastIdx] = { ...lMsg, content: lMsg.content + pending };
+                                } else {
+                                  msgs.push({
+                                      role: 'assistant',
+                                      content: pending,
+                                      isStreaming: true,
+                                      isNew: false,
+                                      timestamp: Date.now()
+                                  });
+                                }
+                                return { ...session, messages: msgs };
+                            }));
+                        }, 60);
+                    }
+                }
+                return; // Defers render entirely until timer fires
+            }
+            // ------------------------------------------------
+
             setActiveSessions(prev => prev.map(s => {
                 if (s.id !== threadId) return s;
 
                 const messages = [...s.messages];
-                const lastMsgIndex = messages.length - 1;
+                let lastMsgIndex = messages.length - 1;
                 let lastMsg = messages[lastMsgIndex];
+
+                // Drain any pending chunks synchronously first
+                if (pendingChunksRef.current[threadId]) {
+                    const pending = pendingChunksRef.current[threadId];
+                    if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
+                        lastMsg = { ...lastMsg, content: lastMsg.content + pending };
+                        messages[lastMsgIndex] = lastMsg;
+                    } else {
+                        lastMsg = {
+                            role: 'assistant',
+                            content: pending,
+                            isStreaming: true,
+                            isNew: false,
+                            timestamp: Date.now()
+                        };
+                        messages.push(lastMsg);
+                        lastMsgIndex = messages.length - 1;
+                    }
+                    delete pendingChunksRef.current[threadId];
+                }
 
                 // Initialize thinking/metrics if not present
                 const thinkingSteps = s.thinkingSteps || [];

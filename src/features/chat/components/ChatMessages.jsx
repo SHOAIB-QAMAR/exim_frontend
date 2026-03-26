@@ -1,16 +1,17 @@
-import React, { useCallback, useRef, useEffect, useLayoutEffect } from 'react';
+import React, { useCallback, useRef, useEffect, useLayoutEffect, useState } from 'react';
 import MessageContent, { TypingMessage } from './MessageContent';
 import AIProcessingDropdown from './AIProcessingDropdown';
 import LogisticsLoader from '../../../components/common/LogisticsLoader';
 import InputArea from './InputArea';
 import API_CONFIG from '../../../services/api.config';
+import ImageOverlay from '../../../components/common/ImageOverlay';
 
 /* MessageRow Component
  * Represents a single message in the chat timeline (either from the user or the assistant).
  * Wrapped in React.memo to prevent unnecessary re-renders when other messages update, significantly improving performance for long chat histories.
  * @param {Object} props || @param {Object} props.msg - The message object containing role, content, image, and status flags || @param {number} props.idx - The index of this message in the messages array || @param {Array} props.messages - The full array of messages in the current session || @param {Object} props.activeSession - The current chat session object (contains metrics, thinking states) || @param {Function} props.onTypingComplete - Callback fired when a streaming text effect finishes || @param {Function} props.onRetry - Callback to retry sending a failed message || @param {Function} props.onLinkClick - Callback fired when a link inside a message is clicked || @param {Function} props.scrollToBottom - Callback to force the container to scroll to the bottom during typing */
 
-const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComplete, onRetry, onLinkClick, scrollToBottom }) => {
+const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComplete, onRetry, onLinkClick, onImageClick, scrollToBottom }) => {
 
     const isLastAssistantMsg = msg.role === 'assistant' && idx === messages.length - 1;
 
@@ -40,7 +41,8 @@ const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComp
                                       : `${API_CONFIG.API_BASE_URL}${msg.image}`
                                 }
                                 alt="Attached"
-                                className="max-w-full max-h-36 rounded-lg mb-2 border border-[var(--border-color)] bg-black/5"
+                                onClick={(e) => onImageClick && onImageClick(e.target.src)}
+                                className="max-w-full max-h-36 rounded-lg mb-2 border border-[var(--border-color)] bg-black/5 cursor-pointer hover:opacity-90 transition-opacity"
                                 onError={(e) => { e.target.style.display = 'none'; }}
                             />
                         )}
@@ -160,6 +162,7 @@ const ChatMessages = ({
     setIsVoiceMode,
     setLiveVoiceMessages
 }) => {
+    const [previewImage, setPreviewImage] = useState(null);
     // -------------------------------------------
     // REFS FOR DOM ACCESS AND MEASUREMENT
     // -------------------------------------------
@@ -372,6 +375,7 @@ const ChatMessages = ({
                                     onTypingComplete={onTypingComplete}
                                     onRetry={onRetry}
                                     onLinkClick={onLinkClick}
+                                    onImageClick={setPreviewImage}
                                     scrollToBottom={handleTypingScroll}
                                 />
                             </div>
@@ -403,6 +407,8 @@ const ChatMessages = ({
                     />
                 </div>
             </div>
+            
+            <ImageOverlay isOpen={!!previewImage} imageUrl={previewImage} onClose={() => setPreviewImage(null)} />
         </div>
     );
 };
