@@ -18,9 +18,13 @@ const useKeyboardHeight = () => {
         if (!vv) return; // Desktop / unsupported — no-op
 
         const update = () => {
-            // keyboard_height = full window height minus the visible visual viewport height
-            // When keyboard is closed this equals 0 (or very close to it)
-            const keyboardHeight = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+            // Keyboard height = full layout height minus the visible visual viewport height.
+            // We deliberately do NOT subtract vv.offsetTop here: that value represents
+            // how much the browser has scrolled the visual viewport upward to keep the
+            // focused input in view — it is NOT part of the keyboard size. Including it
+            // caused the padding-bottom to be massively over-inflated on the second focus,
+            // pushing the header off screen.
+            const keyboardHeight = Math.max(0, window.innerHeight - vv.height);
             document.documentElement.style.setProperty('--keyboard-height', `${keyboardHeight}px`);
         };
 
