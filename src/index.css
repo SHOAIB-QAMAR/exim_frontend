@@ -178,10 +178,19 @@ body {
 }
 
 @media (max-width: 767px) {
-
-    html,
-    body {
+    /* Stabilize document height */
+    html, body, #root {
+        height: 100%;
+        height: var(--app-height, 100%);
+        overflow: hidden;
         overscroll-behavior: none;
+    }
+
+    .app-container {
+        position: relative;
+        height: 100%;
+        height: var(--app-height, 100dvh);
+        width: 100%;
     }
 
     .chat-area {
@@ -197,13 +206,10 @@ body {
         flex: 1;
     }
 
-    /* When the virtual keyboard opens, the JS hook writes --keyboard-height.
-       Padding the content column by that amount causes the flex layout to
-       naturally push the input (shrink-0) up above the keyboard,
-       while the header at the top stays fixed and untouched. */
+    /* Content should take up remaining space but not push layout */
     .content {
-        padding-bottom: var(--keyboard-height, 0px);
-        transition: padding-bottom 0.15s ease;
+        height: 100%;
+        overflow: hidden;
     }
 }
 
