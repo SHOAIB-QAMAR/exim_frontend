@@ -155,23 +155,38 @@ body {
 
 /* On mobile: remove all outer padding — input fills edge-to-edge */
 @media (max-width: 767px) {
+    /* ── LOCK THE DOCUMENT ──
+       Prevents the browser from scrolling the document body. 
+       Essential for 'Shrink to Fit' strategy. */
+    html, body, #root {
+        height: 100%;
+        height: var(--app-height, 100%);
+        overflow: hidden !important;
+        position: fixed;
+        width: 100%;
+        top: 0;
+        left: 0;
+        overscroll-behavior: none;
+    }
+
+    /* ── REMOVE OUTER PADDING FROM INPUT ── */
     .input-area {
         padding: 0 !important;
         padding-bottom: env(safe-area-inset-bottom, 0px) !important;
     }
 
-    /* Anchor the whole app so the keyboard can't displace the layout.
-       Works as a fallback where interactive-widget=resizes-visual is not supported. */
+    /* ── DYNAMIC APP HEIGHT ──
+       Container height is strictly controlled by the Visual Viewport API 
+       on mobile to prevent 'empty space' and gaps. */
     .app-container {
-        position: fixed !important;
-        top: 0;
-        left: 0;
-        right: 0;
-        bottom: 0;
-        height: auto !important;
+        position: relative !important;
+        height: 100% !important;
+        height: var(--app-height, 100dvh) !important;
+        width: 100% !important;
+        overflow: hidden;
     }
 
-    /* Sidebar also must fill the same fixed area */
+    /* Sidebar also fits the container */
     .sidebar {
         height: 100% !important;
     }
@@ -197,13 +212,11 @@ body {
         flex: 1;
     }
 
-    /* When the virtual keyboard opens, the JS hook writes --keyboard-height.
-       Padding the content column by that amount causes the flex layout to
-       naturally push the input (shrink-0) up above the keyboard,
-       while the header at the top stays fixed and untouched. */
+    /* Content fits exactly within the shrunken app area */
     .content {
-        padding-bottom: var(--keyboard-height, 0px);
-        transition: padding-bottom 0.15s ease;
+        height: 100%;
+        overflow: hidden;
+        padding-bottom: 0 !important; /* Remove manual padding */
     }
 }
 
