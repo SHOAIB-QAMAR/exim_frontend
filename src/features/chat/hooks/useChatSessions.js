@@ -5,22 +5,25 @@ import ChatService from '../../../services/chat.service';
 const STORAGE_KEY_SESSIONS = 'CHATS_ACTIVE_SESSIONS';
 const STORAGE_KEY_ACTIVE_ID = 'CHATS_ACTIVE_SESSION_ID';
 
-
-
-// Creates a new session object with default values
-
+/**
+ * Creates a default session object structure.
+ * 
+ * @param {string} [id=uuidv1()] - Local unique identifier for the tab
+ * @param {string} [title="New Chat"] - Display title for the tab
+ * @returns {Object} A fresh session state object
+ */
 const createSession = (id = uuidv1(), title = "New Chat") => ({
     id,
-    sessionId: null, // Backend's session_id — null for new chats, set when loaded from history or promoted
-    objectId: null, // Backend's MongoDB _id
+    sessionId: null, // Backend session_id (used for API calls)
+    objectId: null,  // Backend MongoDB _id (used for history lookups)
     messages: [],
     hasMoreMessages: false,
-    messageSkip: 0,
+    messagePage: 1,  // Track pagination locally
     isLoadingMore: false,
     inputValue: "",
     title,
     isThinking: false,
-    isNew: true, // Tracks if this is a brand new chat session (show WelcomeScreen)
+    isNew: true, // If true, shows the WelcomeScreen instead of ChatMessages
     scrollPosition: 0,
     isPinnedToBottom: true,
     lastAccessedAt: Date.now(),
@@ -28,7 +31,17 @@ const createSession = (id = uuidv1(), title = "New Chat") => ({
     contextPanel: { open: false, data: null }
 });
 
-export const useChatSessions = (threads = [], closeMobileSidebar) => {
+/**
+ * useChatSessions Hook
+ * 
+ * Manages the multi-tab chat state, persistence to localStorage, 
+ * and session lifecycle (create, load, switch, close).
+ * 
+ * @param {Array} threads - Cached thread list from the sidebar/history
+ * @param {Function} [closeMobileSidebar] - Callback to close sidebar on interaction
+ * @returns {Object} Session state and stable action handlers
+ */
+export const useChatSessions = (threads, closeMobileSidebar) => {
     // ── PERSISTENCE INITIALIZATION ──
     const [activeSessions, setActiveSessions] = useState(() => {
         try {
@@ -36,7 +49,7 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
             if (saved) {
                 const parsed = JSON.parse(saved);
                 if (Array.isArray(parsed) && parsed.length > 0) {
-                    // Revive dates or other cleanups if needed
+                    // Cleanup volatile states before initializing from storage
                     return parsed.map(s => ({
                         ...s,
                         isThinking: false, // Don't persist thinking state across refresh
@@ -47,7 +60,7 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
                 }
             }
         } catch (e) {
-            console.error("Failed to load sessions from storage", e);
+            console.error("[useChatSessions] Storage load failed:", e);
         }
         return [createSession()];
     });
@@ -68,42 +81,45 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
 
     const activeSession = activeSessions.find(s => s.id === activeSessionId) || activeSessions[0];
 
-    // Updates fields on the currently active session 
-    const updateActiveSession = (fields) => {
+    /**
+     * Updates specific fields on the currently active session.
+     */
+    const updateActiveSession = useCallback((fields) => {
         setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, ...fields } : s));
-    };
+    }, [activeSessionId]);
 
-    // Creates a new chat session 
-    const handleNewChat = () => {
+    /**
+     * Creates a brand new chat session and switches to it.
+     */
+    const handleNewChat = useCallback(() => {
         try {
             const newSession = createSession();
-
             setActiveSessions(prev => [...prev, newSession]);
-
-
             setActiveSessionId(newSession.id);
             closeMobileSidebar?.();
-        } catch {
-            // handleNewChat error — silent
-
+        } catch (e) {
+            console.warn("[useChatSessions] New chat error:", e);
         }
-    };
+    }, [closeMobileSidebar]);
 
-    // Switches to a different tab/session
-    const handleTabClick = (id) => {
+    /**
+     * Switches the UI to a different tab/session.
+     */
+    const handleTabClick = useCallback((id) => {
         if (activeSessionId === id) return;
-
         setActiveSessions(prev => prev.map(s =>
             s.id === id ? { ...s, lastAccessedAt: Date.now() } : s
         ));
         setActiveSessionId(id);
-    };
+    }, [activeSessionId]);
 
-    // Closes a tab/session
-    const handleTabClose = (id) => {
+    /**
+     * Closes a specific tab and manages active ID fallback.
+     */
+    const handleTabClose = useCallback((id) => {
         try {
             if (activeSessions.length === 1) {
-                // Reset the last tab by replacing it with a fresh session
+                // If closing the last tab, reset to a fresh empty session
                 const freshSession = createSession();
                 setActiveSessions([freshSession]);
                 setActiveSessionId(freshSession.id);
@@ -116,44 +132,49 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
             if (activeSessionId === id) {
                 setActiveSessionId(newSessions[newSessions.length - 1].id);
             }
-        } catch {
-            // handleTabClose error — silent
-
+        } catch (e) {
+            console.warn("[useChatSessions] Tab close error:", e);
         }
-    };
+    }, [activeSessions, activeSessionId]);
 
-    // Loads a chat thread from history
-    const handleLoadChat = async (threadId) => {
+    /**
+     * Loads an existing chat thread from history into a tab.
+     */
+    const handleLoadChat = useCallback(async (thread) => {
         try {
-            if (!threadId) return;
+            if (!thread) return;
 
-            const thread = threads.find(t => t.threadId === threadId);
-            const objectId = thread?.objectId || thread?._id || threadId;
+            const objectId = thread.objectId || thread._id;
+            const sessionId = thread.sessionId || objectId;
 
-            // Check if already open
-            const existing = activeSessions.find(s => s.id === threadId);
+            // Check if already open in a tab
+            const existing = activeSessions.find(s => s.id === sessionId);
             if (existing) {
                 setActiveSessions(prev => prev.map(s =>
-                    s.id === threadId ? { ...s, lastAccessedAt: Date.now() } : s
+                    s.id === sessionId ? { ...s, lastAccessedAt: Date.now() } : s
                 ));
-                setActiveSessionId(threadId);
+                setActiveSessionId(sessionId);
                 closeMobileSidebar?.();
                 return;
             }
 
-            // Create new session with loading state. Set isNew to false because we are loading from history.
-            const newSession = { ...createSession(threadId, "Loading..."), objectId, isThinking: true, isNew: false };
+            // Create placeholder session with loading indicator
+            const newSession = {
+                ...createSession(sessionId, "Loading..."),
+                objectId,
+                sessionId,
+                isThinking: true,
+                isNew: false
+            };
 
             setActiveSessions(prev => [...prev, newSession]);
-            setActiveSessionId(threadId);
-            console.log(`[Chat] Opened thread: ${threadId}`);
+            setActiveSessionId(sessionId);
             closeMobileSidebar?.();
 
-            // Fetch messages from server (initial batch - page 1)
+            // Fetch actual messages from backend
             try {
                 const response = await ChatService.getThreadMessages(objectId, 1);
-
-                setActiveSessions(prev => prev.map(s => s.id === threadId ? {
+                setActiveSessions(prev => prev.map(s => s.id === sessionId ? {
                     ...s,
                     messages: response.messages || [],
                     hasMoreMessages: response.hasMore || false,
@@ -163,22 +184,23 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
                     objectId: objectId,
                     isThinking: false
                 } : s));
-            } catch {
-
-                setActiveSessions(prev => prev.map(s => s.id === threadId ? {
+            } catch (error) {
+                console.error("[useChatSessions] Load messages error:", error);
+                setActiveSessions(prev => prev.map(s => s.id === sessionId ? {
                     ...s,
                     isThinking: false,
                     title: "Failed to load"
                 } : s));
             }
-        } catch {
-            // handleLoadChat error — silent
-
+        } catch (e) {
+            console.warn("[useChatSessions] Load chat error:", e);
         }
-    };
+    }, [activeSessions, closeMobileSidebar]);
 
-    // Loads previous (older) messages for the currently active session
-    const loadMoreMessages = async () => {
+    /**
+     * Paginates older messages for the currently active session.
+     */
+    const loadMoreMessages = useCallback(async () => {
         if (!activeSession || activeSession.isLoadingMore || !activeSession.hasMoreMessages) return;
 
         updateActiveSession({ isLoadingMore: true });
@@ -186,15 +208,11 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
         try {
             const nextPage = (activeSession.messagePage || 1) + 1;
             const objectId = activeSession.objectId || activeSessionId;
-            const response = await ChatService.getThreadMessages(
-                objectId,
-                nextPage
-            );
+            const response = await ChatService.getThreadMessages(objectId, nextPage);
 
             if (response && response.messages) {
                 setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? {
                     ...s,
-                    // Prepend older messages to the top
                     messages: [...response.messages, ...s.messages],
                     hasMoreMessages: response.hasMore,
                     messagePage: nextPage,
@@ -203,22 +221,27 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
             } else {
                 updateActiveSession({ isLoadingMore: false });
             }
-        } catch {
-
+        } catch (error) {
+            console.error("[useChatSessions] Load more error:", error);
             updateActiveSession({ isLoadingMore: false });
         }
-    };
+    }, [activeSession, activeSessionId, updateActiveSession]);
 
-    // Saves the scroll state silently without triggering full re-renders if possible
-    const saveScrollPosition = (sessionId, scrollTop, isPinned) => {
+    /**
+     * Persists scroll position for a specific session.
+     */
+    const saveScrollPosition = useCallback((sessionId, scrollTop, isPinned) => {
         setActiveSessions(prev => prev.map(s =>
             s.id === sessionId
                 ? { ...s, scrollPosition: scrollTop, isPinnedToBottom: isPinned }
                 : s
         ));
-    };
-    // Promotes a new session's temporary local ID to the real backend session_id.
-    // Called when the backend responds with a session_id for a brand new chat.
+    }, []);
+
+    /**
+     * Promotes a temporary local session to a backend-persisted session.
+     * Called when the first message is successfully processed by the server.
+     */
     const promoteSession = useCallback((oldId, newId) => {
         if (!oldId || !newId || oldId === newId) return;
 
@@ -227,7 +250,6 @@ export const useChatSessions = (threads = [], closeMobileSidebar) => {
         ));
         setActiveSessionId(prev => prev === oldId ? newId : prev);
 
-        // Update localStorage keys immediately
         localStorage.setItem(STORAGE_KEY_ACTIVE_ID, newId);
     }, []);
 

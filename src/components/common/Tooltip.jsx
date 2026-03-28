@@ -1,10 +1,18 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useId } from 'react';
 import { createPortal } from 'react-dom';
 
-/* Reusable Tooltip Component using React Portal and Tailwind CSS.
- * It uses `createPortal` to render the tooltip directly into `document.body` to avoid being clipped by parent containers with `overflow: hidden` or `z-index` stacking contexts.
- * @param {Object} props || @param {string|React.ReactNode} props.content - Content to display inside the tooltip || @param {React.ReactNode} props.children - The element that triggers the tooltip on hover || @param {string} props.position - Preferred position: 'top', 'bottom', 'left', 'right' (default: 'top') || @param {boolean} props.disabled - specific manual disable flag; prevents tooltip from showing || @param {string} props.className - Custom classes applied to the inline-block wrapper around the children || @param {number} props.delay - Delay in ms before showing tooltip on mouse hover (default: 200) */
-
+/**
+ * A reusable Tooltip component using React Portals for overflow safety.
+ * Renders into document.body to avoid clipping by parent container overflow or z-index issues.
+ * 
+ * @param {Object} props
+ * @param {React.ReactNode|string} props.content - Tooltip text or component.
+ * @param {React.ReactNode} props.children - Trigger element.
+ * @param {'top'|'bottom'|'left'|'right'} [props.position='top'] - Preferred tooltip orientation.
+ * @param {boolean} [props.disabled=false] - Manual override to prevent showing.
+ * @param {string} [props.className=''] - Custom CSS classes for the trigger wrapper.
+ * @param {number} [props.delay=200] - Delay in milliseconds before showing.
+ */
 const Tooltip = ({
     content,
     children,
@@ -14,22 +22,19 @@ const Tooltip = ({
     delay = 200
 }) => {
     const [isVisible, setIsVisible] = useState(false);
-
     const [coords, setCoords] = useState({ top: 0, left: 0 });
-
-    // Reference to the wrapper div surrounding the children.
     const triggerRef = useRef(null);
-
-    // Reference to the timeout timer used for the hover delay to prevent rapid flickering
     const timerRef = useRef(null);
+    const tooltipId = useId();
 
-    // ── POSITIONING LOGIC ──
+    /**
+     * Calculates the absolute coordinates for the tooltip based on the trigger's position.
+     */
     const updatePosition = React.useCallback(() => {
-
         if (!triggerRef.current || !isVisible) return;
+
         const rect = triggerRef.current.getBoundingClientRect();
         const gap = 8;
-
         let top = 0;
         let left = 0;
 
@@ -68,15 +73,14 @@ const Tooltip = ({
         setCoords({ top, left });
     }, [isVisible, position]);
 
-    // ── EVENT LISTENERS FOR DYNAMIC REPOSITIONING ──
+    // Handle dynamic repositioning on resize or scroll
     useEffect(() => {
         if (isVisible) {
             // Wrapping in requestAnimationFrame avoids the "cascading render" lint warning
             // by deferring the state update until the browser is ready to paint.
             requestAnimationFrame(updatePosition);
- 
             window.addEventListener('resize', updatePosition);
- 
+
             // Using `true` for useCapture allows catching scroll events from any nested scrollable child elements.
             window.addEventListener('scroll', updatePosition, true);
         }
@@ -87,7 +91,7 @@ const Tooltip = ({
         };
     }, [isVisible, updatePosition]);
 
-    // ── DISABLE OVERRIDE CLEANUP ──
+    // Ensure tooltip hides if it becomes disabled while visible
     useEffect(() => {
         if (disabled && isVisible) {
             requestAnimationFrame(() => setIsVisible(false));
@@ -95,52 +99,51 @@ const Tooltip = ({
         }
     }, [disabled, isVisible]);
 
-    // ── MOUSE INTERACTION HANDLERS ──
-    const handleMouseEnter = () => {
+    const showTooltip = () => {
         if (disabled) return;
         timerRef.current = setTimeout(() => {
             setIsVisible(true);
         }, delay);
     };
 
-    const handleMouseLeave = () => {
+    const hideTooltip = () => {
         if (timerRef.current) clearTimeout(timerRef.current);
         setIsVisible(false);
     };
 
-    // These percentages dictate how the tooltip centers itself around the absolute (top/left) coordinate anchor we calculated earlier.
+    /**
+     * Returns CSS transform values based on position to center the tooltip correctly.
+     */
     const getTransform = () => {
         switch (position) {
-            case 'top': return 'translate(-50%, -100%)';  // Shift UP 100%, LEFT 50%
-            case 'bottom': return 'translate(-50%, 0)';    // Shift LEFT 50%
-            case 'left': return 'translate(-100%, -50%)'; // Shift LEFT 100%, UP 50%
-            case 'right': return 'translate(0, -50%)';    // Shift UP 50%
+            case 'top': return 'translate(-50%, -100%)';
+            case 'bottom': return 'translate(-50%, 0)';
+            case 'left': return 'translate(-100%, -50%)';
+            case 'right': return 'translate(0, -50%)';
             default: return 'translate(-50%, 0)';
         }
     };
 
     return (
         <>
-            {/* ── TRIGGER WRAPPER ── */}
-            {/* The invisible div wrapping the child element to intercept mouse events and provide sizing context */}
             <div
                 ref={triggerRef}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
-                onClick={() => {
-                    if (timerRef.current) clearTimeout(timerRef.current);
-                    setIsVisible(false);
-                }}
+                onMouseEnter={showTooltip}
+                onMouseLeave={hideTooltip}
+                onFocus={showTooltip}
+                onBlur={hideTooltip}
+                onClick={hideTooltip}
                 className={`inline-block ${className}`}
+                aria-describedby={isVisible ? tooltipId : undefined}
+                aria-haspopup="true"
             >
                 {children}
             </div>
 
-            {/* ── PORTAL RENDERING ── */}
-            {/* If the tooltip should be shown, inject it directly into the <body> tag to escape DOM clipping */}
             {isVisible && createPortal(
                 <div
-                    // High z-index to guarantee it floats above entirely all application UI
+                    id={tooltipId}
+                    role="tooltip"
                     className="fixed z-[10000] px-3 py-1.5 text-xs font-medium bg-white dark:bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-md shadow-lg pointer-events-none transition-opacity duration-200 animate-in fade-in"
                     style={{
                         top: coords.top,

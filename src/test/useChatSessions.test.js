@@ -58,29 +58,6 @@ describe('useChatSessions', () => {
         });
     });
 
-    // ── LRU eviction ──────────────────────────────────────────────────────
-    describe('LRU eviction', () => {
-        it('evicts the oldest session when limit (6) is reached', async () => {
-            const { result } = renderHook(() => useChatSessions());
-
-            // Open 5 more tabs (total = 6)
-            for (let i = 0; i < 5; i++) {
-                act(() => result.current.handleNewChat());
-            }
-            expect(result.current.activeSessions).toHaveLength(6);
-
-            // The first session was created with id "mock-id-1"
-            const firstId = 'mock-id-1';
-            expect(result.current.activeSessions.some(s => s.id === firstId)).toBe(true);
-
-            // Open one more — should evict the LRU (first session)
-            act(() => result.current.handleNewChat());
-
-            expect(result.current.activeSessions).toHaveLength(6);
-            expect(result.current.activeSessions.some(s => s.id === firstId)).toBe(false);
-        });
-    });
-
     // ── handleTabClose ────────────────────────────────────────────────────
     describe('handleTabClose', () => {
         it('resets to a fresh session when the only tab is closed', () => {
@@ -126,18 +103,19 @@ describe('useChatSessions', () => {
             const fakeMessages = [{ role: 'user', content: 'hello' }];
             mockGetThreadMessages.mockResolvedValue({ messages: fakeMessages, hasMore: false });
 
-            const threads = [{ threadId: 'thread-abc', title: 'My Thread' }];
-            const { result } = renderHook(() => useChatSessions(threads));
+            const thread = { sessionId: 'sess-abc', objectId: 'mongo-abc', title: 'My Thread' };
+            const { result } = renderHook(() => useChatSessions());
 
             await act(async () => {
-                await result.current.handleLoadChat('thread-abc');
+                await result.current.handleLoadChat(thread);
             });
 
-            const session = result.current.activeSessions.find(s => s.id === 'thread-abc');
+            const session = result.current.activeSessions.find(s => s.id === 'sess-abc');
             expect(session).toBeDefined();
             expect(session.messages).toEqual(fakeMessages);
             expect(session.title).toBe('My Thread');
             expect(session.isThinking).toBe(false);
+            expect(mockGetThreadMessages).toHaveBeenCalledWith('mongo-abc', 1);
         });
 
         it('sets title to "Failed to load" when fetch throws', async () => {
@@ -146,10 +124,10 @@ describe('useChatSessions', () => {
             const { result } = renderHook(() => useChatSessions());
 
             await act(async () => {
-                await result.current.handleLoadChat('thread-xyz');
+                await result.current.handleLoadChat({ sessionId: 'sess-xyz', objectId: 'mongo-xyz' });
             });
 
-            const session = result.current.activeSessions.find(s => s.id === 'thread-xyz');
+            const session = result.current.activeSessions.find(s => s.id === 'sess-xyz');
             expect(session).toBeDefined();
             expect(session.title).toBe('Failed to load');
             expect(session.isThinking).toBe(false);
@@ -168,7 +146,7 @@ describe('useChatSessions', () => {
             act(() => result.current.handleNewChat());
 
             await act(async () => {
-                await result.current.handleLoadChat(existingId);
+                await result.current.handleLoadChat({ sessionId: existingId, objectId: 'some-objectId' });
             });
 
             expect(mockGetThreadMessages).not.toHaveBeenCalled();

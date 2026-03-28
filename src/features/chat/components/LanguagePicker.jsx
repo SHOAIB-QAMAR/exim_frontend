@@ -1,10 +1,30 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import LANGUAGES from '../../../config/languages';
 
-// Language selection dropdown overlay, manages its own search state internally.
-
+/**
+ * LanguagePicker Component
+ * 
+ * An overlay panel that allows users to search and select a language for 
+ * real-time transcription and translation.
+ * 
+ * @param {Object} props
+ * @param {Object} props.selectedLang - The currently active language object
+ * @param {Function} props.onSelectLang - Callback when a language is selected
+ * @param {Function} props.onClose - Callback to close the picker overlay
+ */
 const LanguagePicker = ({ selectedLang, onSelectLang, onClose }) => {
     const [searchTerm, setSearchTerm] = useState("");
+    const activeItemRef = useRef(null);
+
+    // Automatically scroll the selected language into view when the panel opens
+    useEffect(() => {
+        if (activeItemRef.current) {
+            activeItemRef.current.scrollIntoView({
+                behavior: 'auto',
+                block: 'center'
+            });
+        }
+    }, []);
 
     const filteredLanguages = useMemo(() => LANGUAGES.filter(l =>
         l.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -26,20 +46,24 @@ const LanguagePicker = ({ selectedLang, onSelectLang, onClose }) => {
                     />
                 </div>
                 <div className="language-grid p-1.5 flex flex-col gap-0.5 overflow-y-auto custom-scrollbar bg-[var(--bg-card)]">
-                    {filteredLanguages.map((lang, idx) => (
-                        <div
-                            key={idx}
-                            className={`lang-item flex items-center gap-3 p-2 text-sm cursor-pointer rounded-md transition-all text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] ${selectedLang.name === lang.name ? 'active bg-[var(--bg-tertiary)] text-[var(--brand-primary)] font-semibold' : ''}`}
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                onSelectLang(lang);
-                            }}
-                        >
-                            <img src={lang.flag} alt="Flag" className="w-5 h-5 rounded-full shrink-0 object-cover border border-[var(--border-color)]" />
-                            <span className="truncate flex-1">{lang.name}</span>
-                            {selectedLang.name === lang.name && <span className="text-[var(--status-attentive)] text-xs">●</span>}
-                        </div>
-                    ))}
+                    {filteredLanguages.map((lang, idx) => {
+                        const isActive = selectedLang.name === lang.name;
+                        return (
+                            <div
+                                key={idx}
+                                ref={isActive ? activeItemRef : null}
+                                className={`lang-item flex items-center gap-3 p-2 text-sm cursor-pointer rounded-md transition-all text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] ${isActive ? 'active bg-[var(--bg-tertiary)] text-[var(--brand-primary)] font-semibold' : ''}`}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    onSelectLang(lang);
+                                }}
+                            >
+                                <img src={lang.flag} alt="Flag" className="w-5 h-5 rounded-full shrink-0 object-cover border border-[var(--border-color)]" />
+                                <span className="truncate flex-1">{lang.name}</span>
+                                {isActive && <span className="text-[var(--status-attentive)] text-xs">●</span>}
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </>

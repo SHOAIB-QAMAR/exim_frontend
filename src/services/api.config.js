@@ -1,8 +1,18 @@
+/**
+ * API Configuration Constants
+ * 
+ * Centralizes the base URLs for the backend services, including the main REST API
+ * and the specialized WebSocket/LiveKit servers.
+ */
 const API_CONFIG = {
-    // API server base for chat and auth
+    /**
+     * @constant {string} API_BASE_URL - The primary endpoint for chat management and authentication.
+     */
     API_BASE_URL: import.meta.env.VITE_API_BASE_URL || "https://finance.devapi.zipaworld.com",
 
-    // WebSocket Service for LiveKit
+    /**
+     * @constant {string} SOCKET_IO_URL - The endpoint for the multiplexed WebSocket / LiveKit service.
+     */
     SOCKET_IO_URL: import.meta.env.VITE_SOCKET_IO_URL || "https://eximgptlivekitnew.devapi.zipaworld.com"
 };
 

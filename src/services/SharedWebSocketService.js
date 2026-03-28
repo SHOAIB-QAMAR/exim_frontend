@@ -19,7 +19,7 @@ class SharedWebSocketService {
         if (SharedWebSocketService.instance) {
             return SharedWebSocketService.instance;
         }
-        
+
         SharedWebSocketService.instance = this;
 
         // Socket.IO state
@@ -32,7 +32,7 @@ class SharedWebSocketService {
         this.messageQueue = [];
 
         // A list of all chat tab IDs currently open in the UI that require the socket
-        this.activeThreads = new Set();
+        this.activeSessions = new Set();
 
         // State trackers
         this.reconnectAttempts = 0;
@@ -52,7 +52,7 @@ class SharedWebSocketService {
 
     _handleNetworkChange(isOnline) {
         this._notifyErrorSubscribers(isOnline ? null : 'No internet connection');
-        if (isOnline && this.activeThreads.size > 0) {
+        if (isOnline && this.activeSessions.size > 0) {
             this.reconnectAttempts = 0;
             this._scheduleConnect();
         }
@@ -93,7 +93,7 @@ class SharedWebSocketService {
     }
 
     _createSocket() {
-        if (this.activeThreads.size === 0) return;
+        if (this.activeSessions.size === 0) return;
 
         if (this.socket && (this.socket.connected || this.socket.connecting || this.socket.io.engine)) {
             return;
@@ -114,22 +114,6 @@ class SharedWebSocketService {
 
             this.socket.connect();
 
-            this.socket.io.on("error", () => {
-                // Socket.IO manager-level error
-            });
-
-            this.socket.io.on("reconnect_attempt", () => {
-                // Reconnect attempt in progress
-            });
-
-            this.socket.io.on("reconnect_error", () => {
-                // Reconnect failed
-            });
-
-            this.socket.on('error', () => {
-                // Socket-level error
-            });
-
             this.socket.on('connect', () => {
                 this.reconnectAttempts = 0;
                 this._notifyErrorSubscribers(null);
@@ -146,7 +130,7 @@ class SharedWebSocketService {
             });
 
             this.socket.on('disconnect', () => {
-                if (!this.isExplicitlyDisconnected && this.activeThreads.size > 0) {
+                if (!this.isExplicitlyDisconnected && this.activeSessions.size > 0) {
                     this._notifyErrorSubscribers('Connection lost. Reconnecting...');
                 }
             });
@@ -177,18 +161,18 @@ class SharedWebSocketService {
             const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
             if (!data) return;
 
-            // Extract the target threadId for multiplexing
-            // Backend sends session_id which contains the thread identifier
-            let threadId = data.threadId || data.thread_id || data.session_id || data.chat_id || this.activeThreadId;
+            // Extract the target sessionId for multiplexing
+            // Backend sends session_id which contains the identifier
+            let sessionId = data.sessionId || data.threadId || data.thread_id || data.session_id || data.chat_id;
 
             // For new chats, backend returns a new session_id that doesn't match
             // the local UUID. Use questionAnswer to route to the correct local session.
             if (!this.pendingRequests) this.pendingRequests = new Map();
             if (data.questionAnswer && this.pendingRequests.has(data.questionAnswer)) {
                 const requestInfo = this.pendingRequests.get(data.questionAnswer);
-                const localThreadId = typeof requestInfo === 'object' ? requestInfo.threadId : requestInfo;
-                if (localThreadId !== threadId) {
-                    threadId = localThreadId;
+                const localSessionId = typeof requestInfo === 'object' ? requestInfo.sessionId : requestInfo;
+                if (localSessionId !== sessionId) {
+                    sessionId = localSessionId;
                 }
 
                 // --- METRICS ---
@@ -215,7 +199,7 @@ class SharedWebSocketService {
             }
 
             // Notify all local React UI components subscribed to this Service
-            this._notifySubscribers(threadId, data);
+            this._notifySubscribers(sessionId, data);
 
         } catch {
             // Message handling failed silently
@@ -244,20 +228,20 @@ class SharedWebSocketService {
     /**
      * Sends the structured gpt_query payload.
      */
-    _sendViaWebSocket(threadId, payload) {
+    _sendViaWebSocket(sessionId, payload) {
         let parsed;
         try {
             parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
         } catch {
-            parsed = { threadId, content: payload };
+            parsed = { sessionId, content: payload };
         }
 
         if (this.socket?.connected) {
 
-            // Track questionAnswer → local threadId for routing responses back
+            // Track questionAnswer → local sessionId for routing responses back
             if (!this.pendingRequests) this.pendingRequests = new Map();
             if (parsed.questionAnswer) {
-                this.pendingRequests.set(parsed.questionAnswer, { threadId, startTime: performance.now() });
+                this.pendingRequests.set(parsed.questionAnswer, { sessionId, startTime: performance.now() });
             }
 
             // --- METRICS ---
@@ -297,7 +281,7 @@ class SharedWebSocketService {
         this.connectTimer = null;
         this.disconnectTimer = null;
         this.reconnectTimer = null;
-        this.activeThreads.clear();
+        this.activeSessions.clear();
         this.reconnectAttempts = 0;
         this._closeSocket();
     }
@@ -308,9 +292,9 @@ class SharedWebSocketService {
      * Iterates exactly through all active React hooks listening to the socket 
      * and passes the data chunk upwards. 
      */
-    _notifySubscribers(threadId, message) {
+    _notifySubscribers(sessionId, message) {
         this.subscribers.forEach(callback => {
-            try { callback(threadId, message); }
+            try { callback(sessionId, message); }
             catch { /* Subscriber error */ }
         });
     }
@@ -324,15 +308,15 @@ class SharedWebSocketService {
 
     // ==================== PUBLIC API ====================
 
-    /** Register a thread (signals that we need the WebSocket) */
-    connectThread(threadId) {
-        this.activeThreads.add(threadId);
+    /** Register a session (signals that we need the WebSocket) */
+    connectSession(sessionId) {
+        this.activeSessions.add(sessionId);
         this._scheduleConnect();
     }
 
     /** Send a message via WebSocket */
-    sendMessage(threadId, text) {
-        return this._sendViaWebSocket(threadId, text);
+    sendMessage(sessionId, text) {
+        return this._sendViaWebSocket(sessionId, text);
     }
 
     /** Subscribe to incoming messages */
@@ -353,10 +337,10 @@ class SharedWebSocketService {
         this._scheduleConnect();
     }
 
-    /** Unregister a thread */
-    disconnectThread(threadId) {
-        this.activeThreads.delete(threadId);
-        if (this.activeThreads.size === 0) this._scheduleDisconnect();
+    /** Unregister a session */
+    disconnectSession(sessionId) {
+        this.activeSessions.delete(sessionId);
+        if (this.activeSessions.size === 0) this._scheduleDisconnect();
     }
 }
 

@@ -13,12 +13,16 @@ import { RoomEvent } from 'livekit-client';
 import { LiveKitRoom, RoomAudioRenderer, useRoomContext, useLocalParticipant } from '@livekit/components-react';
 import '@livekit/components-styles';
 
-// ==========================================
-// 1. LiveKit Event Bridge (Runs inside Room)
-// ==========================================
-
-
-// Subscribes cleanly to Room events and maps transcriptions directly into our React state.
+/**
+ * LiveKitEventBridge
+ * 
+ * Handles real-time event synchronization between the LiveKit room and the 
+ * application state. Specifically manages transcriptions and language switching.
+ * 
+ * @param {Object} props
+ * @param {Function} props.setLiveVoiceMessages - Updates the list of live transcriptions
+ * @param {Object} props.selectedLang - Currently selected language for STT/TTS
+ */
 function LiveKitEventBridge({ setLiveVoiceMessages, selectedLang }) {
     const room = useRoomContext();
     const segmentTracker = useRef(new Map());
@@ -97,10 +101,18 @@ function LiveKitEventBridge({ setLiveVoiceMessages, selectedLang }) {
     return null;
 }
 
-// ==========================================
-// 2. Custom Voice UI (Runs inside Room)
-// ==========================================
-
+/**
+ * VoiceCallUI
+ * 
+ * Provides the visual interface for an active voice session, including 
+ * a fake audio visualizer and controls for microphone/sound.
+ * 
+ * @param {Object} props
+ * @param {Function} props.handleVoiceCancel - Callback to end the voice session
+ * @param {boolean} props.isVoiceConnected - Flag indicating if the room connection is stable
+ * @param {boolean} props.soundEnabled - Flag for audio output state
+ * @param {Function} props.toggleSound - Callback to mute/unmute audio output
+ */
 function VoiceCallUI({ handleVoiceCancel, isVoiceConnected, soundEnabled, toggleSound }) {
     const [audioData, setAudioData] = useState(new Array(30).fill(10));
     const { isMicrophoneEnabled, localParticipant } = useLocalParticipant();
@@ -109,10 +121,17 @@ function VoiceCallUI({ handleVoiceCancel, isVoiceConnected, soundEnabled, toggle
     const micInitialized = useRef(false);
     useEffect(() => {
         if (!localParticipant || micInitialized.current) return;
-        micInitialized.current = true;
-        console.log('Initial Microphone State: ON');
-        localParticipant.setMicrophoneEnabled(true).catch(e => console.error('[VoiceCallUI] Mic start error:', e));
-    }, [localParticipant]);
+
+        // Only trigger if not already enabled by LiveKitRoom audio=true
+        if (!isMicrophoneEnabled) {
+            micInitialized.current = true;
+            console.log('Initial Microphone State: ON (Manual trigger)');
+            localParticipant.setMicrophoneEnabled(true).catch(e => console.error('[VoiceCallUI] Mic start error:', e));
+        } else {
+            micInitialized.current = true;
+            console.log('Initial Microphone State: ON (Already enabled)');
+        }
+    }, [localParticipant, isMicrophoneEnabled]);
 
     // Fake pulse visualizer
     useEffect(() => {
@@ -186,16 +205,37 @@ function VoiceCallUI({ handleVoiceCancel, isVoiceConnected, soundEnabled, toggle
     );
 }
 
-// ==========================================
-// 3. Main Component
-// ==========================================
+/**
+ * InputArea Component
+ * 
+ * The primary interaction point for the user. Supports text input, 
+ * file/image attachments, camera capture, and voice-to-voice interaction.
+ * 
+ * @param {Object} props
+ * @param {string} props.inputValue - Current text in the textarea
+ * @param {Function} props.setInputValue - Updates text input
+ * @param {Function} props.onSend - Callback to send a message
+ * @param {string} props.mode - UI mode ('bottom' or standalone)
+ * @param {any} props.selectedFile - Current attachment (URL or File)
+ * @param {Function} props.setSelectedFile - Updates attachment
+ * @param {boolean} props.disabled - Interaction lock (e.g., during AI response)
+ * @param {boolean} props.focusInput - Trigger to force focus on the textarea
+ * @param {Function} props.setFocusInput - Reset focus trigger
+ * @param {Object} props.selectedLang - Active language configuration
+ * @param {string} props.activeSessionId - ID of the active chat session
+ * @param {boolean} props.isVoiceMode - Flag for voice interaction mode
+ * @param {Function} props.setIsVoiceMode - Toggle voice mode
+ * @param {Function} props.setLiveVoiceMessages - Handler for voice transcriptions
+ */
 const InputArea = ({
     inputValue, setInputValue, onSend, mode,
     selectedFile, setSelectedFile, disabled = false,
     focusInput, setFocusInput, selectedLang, activeSessionId,
-    // Voice Mode props mapped from Layout.jsx
     isVoiceMode, setIsVoiceMode, setLiveVoiceMessages
 }) => {
+    const inputId = React.useId();
+    const notificationId = React.useId();
+    const attachMenuId = React.useId();
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
     const webcamRef = useRef(null);
@@ -422,7 +462,10 @@ const InputArea = ({
                     {/* ── NOTIFICATION BANNER ── */}
                     {notification && (
                         <div
-                            className="fixed top-20 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-2 rounded-full text-[var(--text-primary)] text-sm font-medium shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-[var(--border-color)] bg-[var(--bg-card)] animate-fade-in-up whitespace-nowrap"
+                            id={notificationId}
+                            role="status"
+                            aria-live="polite"
+                            className="fixed top-28 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-2 rounded-full text-[var(--text-primary)] text-sm font-medium shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-[var(--border-color)] bg-[var(--bg-card)] animate-fade-in-up whitespace-nowrap"
                             style={{
                                 left: window.innerWidth >= 1024
                                     ? `calc(${sidebarCollapsed ? '64px' : '272px'} + (100vw - ${sidebarCollapsed ? '64px' : '272px'}) / 2)`
@@ -430,11 +473,11 @@ const InputArea = ({
                             }}
                         >
                             {notification === 'Image uploading...' || notification.startsWith('Connecting') || notification === 'Switching voice...' ? (
-                                <span className="animate-spin inline-block w-4 h-4 border-2 border-[var(--text-secondary)] border-t-[var(--brand-primary)] rounded-full" />
+                                <span className="animate-spin inline-block w-4 h-4 border-2 border-[var(--text-secondary)] border-t-[var(--brand-primary)] rounded-full" aria-hidden="true" />
                             ) : notification.includes('failed') ? (
-                                <FaXmark className="text-red-500 text-sm" />
+                                <FaXmark className="text-red-500 text-sm" aria-hidden="true" />
                             ) : (
-                                <FaCircleCheck className="text-green-500 dark:text-green-400 text-sm" />
+                                <FaCircleCheck className="text-green-500 dark:text-green-400 text-sm" aria-hidden="true" />
                             )}
                             {notification}
                         </div>
@@ -448,7 +491,7 @@ const InputArea = ({
                                     serverUrl="wss://demo-xv7lww7p.livekit.cloud"
                                     token={activeToken}
                                     connect={true}
-                                    audio={false} // Managed locally to avoid permission loop
+                                    audio={true} // Enabled by default to ensure mic is open on connect
                                     options={{ adaptiveStream: false, dynacast: false }}
                                     onConnected={() => {
                                         console.log('[LiveKitRoom] Event: onConnected (Stable)');
@@ -512,34 +555,44 @@ const InputArea = ({
                                             type="button"
                                             className={`group flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 ${showAttachMenu ? 'bg-[var(--brand-primary)] text-white rotate-45' : 'hover:bg-[var(--bg-tertiary)]'}`}
                                             onClick={() => setShowAttachMenu(prev => !prev)}
+                                            aria-label="Attachment options"
+                                            aria-expanded={showAttachMenu}
+                                            aria-haspopup="true"
+                                            aria-controls={attachMenuId}
                                             title="Attach"
                                         >
-                                            <FaPlus className={`text-lg transition-transform duration-200 ${showAttachMenu ? 'text-white' : 'text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)]'}`} />
+                                            <FaPlus className={`text-lg transition-transform duration-200 ${showAttachMenu ? 'text-white' : 'text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)]'}`} aria-hidden="true" />
                                         </button>
 
                                         {showAttachMenu && (
-                                            <div className="absolute bottom-full left-0 mb-2 w-48 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl shadow-xl z-50 overflow-hidden">
+                                            <div
+                                                id={attachMenuId}
+                                                className="absolute bottom-full left-0 mb-2 w-48 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl shadow-xl z-50 overflow-hidden"
+                                                role="menu"
+                                            >
                                                 <button
                                                     type="button"
+                                                    role="menuitem"
                                                     className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                                     onClick={() => {
                                                         fileInputRef.current?.click();
                                                         setShowAttachMenu(false);
                                                     }}
                                                 >
-                                                    <FaImage className="text-[var(--brand-primary)] text-base" />
+                                                    <FaImage className="text-[var(--brand-primary)] text-base" aria-hidden="true" />
                                                     Upload Image
                                                 </button>
-                                                <div className="h-px bg-[var(--border-color)]" />
+                                                <div className="h-px bg-[var(--border-color)]" aria-hidden="true" />
                                                 <button
                                                     type="button"
+                                                    role="menuitem"
                                                     className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                                     onClick={() => {
                                                         setShowCamera(true);
                                                         setShowAttachMenu(false);
                                                     }}
                                                 >
-                                                    <FaCamera className="text-[var(--brand-primary)] text-base" />
+                                                    <FaCamera className="text-[var(--brand-primary)] text-base" aria-hidden="true" />
                                                     Take Photo
                                                 </button>
                                             </div>
@@ -558,9 +611,11 @@ const InputArea = ({
                                     {/* Textarea */}
                                     <div className="flex-1 relative w-full">
                                         <textarea
+                                            id={inputId}
                                             ref={textareaRef}
                                             className="chat-input block w-full border-none outline-none bg-transparent text-base text-[var(--text-primary)] placeholder-[var(--text-secondary)] resize-none py-2.5 max-h-[200px] overflow-y-auto scrollbar-none"
                                             placeholder={window.innerWidth < 768 ? "Ask EximGPT" : "Send a message here..."}
+                                            aria-label="Chat message"
                                             value={inputValue}
                                             onChange={handleInput}
                                             onKeyDown={handleKeyDown}
@@ -576,9 +631,10 @@ const InputArea = ({
                                                 type="button"
                                                 className={`group flex items-center justify-center w-10 h-10 rounded-full transition-all relative z-10 hover:bg-[var(--bg-tertiary)]`}
                                                 onClick={handleVoiceToggle}
-                                                title={"Voice Input"}
+                                                aria-label={isVoiceMode ? "Stop Voice Mode" : "Start Voice Input"}
+                                                title="Voice Input"
                                             >
-                                                <FaMicrophone className="text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)] text-lg" />
+                                                <FaMicrophone className="text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)] text-lg" aria-hidden="true" />
                                             </button>
                                         </div>
 
@@ -596,8 +652,9 @@ const InputArea = ({
                                                         : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-not-allowed'}`}
                                                 onClick={handleSend}
                                                 disabled={disabled || (!inputValue.trim() && !selectedFile)}
+                                                aria-label="Send message"
                                             >
-                                                <FaPaperPlane className="text-sm ml-0.5" />
+                                                <FaPaperPlane className="text-sm ml-0.5" aria-hidden="true" />
                                             </button>
                                         </Tooltip>
                                     </div>

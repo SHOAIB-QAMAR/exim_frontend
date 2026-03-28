@@ -4,9 +4,16 @@ import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
 import ImageOverlay from '../../../components/common/ImageOverlay';
 
-// Renders raw markdown text into safe, stylized HTML components. Configured with Github Flavored Markdown (tables, strikethrough, task lists) and sanitized to prevent Cross-Site Scripting (XSS) attacks.
-// @param {Object} props || @param {string} props.content - The raw markdown text to render || @param {function} props.onLinkClick - Callback fired when a human clicks an external link
- 
+/**
+ * MessageContent Component
+ * 
+ * Renders raw markdown text into safe, stylized HTML components.
+ * Configured with Github Flavored Markdown (GFM) and sanitized via rehype-sanitize.
+ * 
+ * @param {Object} props
+ * @param {string} props.content - The raw markdown text to render
+ * @param {Function} props.onLinkClick - Callback fired when a link is clicked
+ */
 const MessageContent = ({ content, onLinkClick }) => {
     const [previewImage, setPreviewImage] = useState(null);
 
@@ -44,13 +51,20 @@ const MessageContent = ({ content, onLinkClick }) => {
 
         // Custom Image Handler
         img: ({ src, alt, ...rest }) => (
-            <img
-                src={src}
-                alt={alt}
-                className="cursor-pointer max-w-full rounded-md mt-2 mb-2 hover:opacity-90 transition-opacity border border-[var(--border-color)]/50 shadow-sm"
+            <button
+                type="button"
+                className="block w-full text-left border-none bg-transparent p-0 mt-2 mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] rounded-md"
                 onClick={() => setPreviewImage(src)}
-                {...rest}
-            />
+                aria-label={`View full size image: ${alt || ''}`}
+                title="Click to expand"
+            >
+                <img
+                    src={src}
+                    alt={alt}
+                    className="cursor-pointer max-w-full rounded-md hover:opacity-90 transition-opacity border border-[var(--border-color)]/50 shadow-sm"
+                    {...rest}
+                />
+            </button>
         ),
 
         // Custom List Item Handler (Adding styling support for Github-style Task Lists)
@@ -100,11 +114,16 @@ const MessageContent = ({ content, onLinkClick }) => {
 };
 
 
-/* Helper Utility for Partial Markdown Parsing
- * Ensures partially-streamed markdown is visually stable by artificially closing unclosed syntax. If an AI stream cuts off mid-bold like `Here is some **bold tex`, standard markdown parsers
- * will render raw unstyled asterisks. This function detects the open `**` and temporarily appends a closing `**` to ensure it renders as safe bold HTML during the live Web Socket stream.
- * @param {string} text - The raw, potentially cut-off markdown string from the chunk server @returns {string} - The "repaired" markdown string */
-
+/**
+ * ensureClosedMarkdown
+ * 
+ * Helper Utility for Partial Markdown Parsing.
+ * Ensures partially-streamed markdown is visually stable by artificially closing unclosed syntax.
+ * Prevents flickering or raw asterisk display during live streaming.
+ * 
+ * @param {string} text - The raw, potentially incomplete markdown string
+ * @returns {string} - The repaired markdown string with closed tags
+ */
 const ensureClosedMarkdown = (text) => {
     if (!text) return text;
     let fixedText = text;
@@ -179,11 +198,20 @@ const ensureClosedMarkdown = (text) => {
     return fixedText;
 };
 
-/* TypingMessage Component — Word-by-word streaming animation wrapper.
- * During streaming (isStreaming=true): reveals text word-by-word as network chunks arrive.
- * After streaming (isStreaming transitions to false): continues the word-by-word animation until all content is displayed, then signals completion via onComplete.
- * Adaptive speed logic: automatically accelerates when buffered content is large to prevent excessive UI lag behind incoming network chunks. */
-
+/**
+ * TypingMessage Component
+ * 
+ * Word-by-word streaming animation wrapper.
+ * Gradually reveals content to simulate a typing effect, with adaptive speed 
+ * to keep up with high-throughput streams.
+ * 
+ * @param {Object} props
+ * @param {string} props.content - Full content to reveal
+ * @param {boolean} props.isStreaming - Whether the source stream is still active
+ * @param {Function} props.onComplete - Callback when final word is revealed
+ * @param {Function} props.onTyping - Callback fired on every reveal tick (used for auto-scroll)
+ * @param {Function} props.onLinkClick - Link click handler passed to MessageContent
+ */
 export const TypingMessage = ({ content, isStreaming, onComplete, onTyping, onLinkClick }) => {
     // We initialize our `displayedContent` progress exactly where the stream currently is.
     const [displayedContent, setDisplayedContent] = useState(() => ensureClosedMarkdown(content));

@@ -4,7 +4,6 @@ import { reportError } from '../../utils/errorMonitor';
 class GlobalErrorBoundary extends React.Component {
     constructor(props) {
         super(props);
-        // Initialize state to track if an error has occurred and to store error details
         this.state = {
             hasError: false,
             error: null,
@@ -13,16 +12,17 @@ class GlobalErrorBoundary extends React.Component {
     }
 
 
-    /* Method invoked after an error has been thrown by a descendant component.
-     * It receives the error that was thrown as a parameter and should return a value to update state.
-     * @param {Error} error - The error that was thrown, @returns {Object} State update indicating an error occurred */
+    /**
+     * Updates state when an error is caught in a child component.
+     * @param {Error} error - The caught error.
+     * @returns {Object} Updated state.
+     */
     static getDerivedStateFromError(error) {
-        // Update state so the next render will show the fallback UI instead of crashing the app
         return { hasError: true, error };
     }
 
     componentDidCatch(error, errorInfo) {
-        // Log the error to our centralized error reporting service for monitoring
+        // Log error to monitoring service
         reportError({
             type: 'react_error_boundary',
             message: error?.message,
@@ -30,12 +30,15 @@ class GlobalErrorBoundary extends React.Component {
             componentStack: errorInfo?.componentStack,
         });
 
-        // Save the error info to state (optional, can be used for debugging UI)
         this.setState({ errorInfo });
     }
 
     handleReload = () => {
         window.location.reload();
+    };
+
+    handleGoHome = () => {
+        window.location.href = '/';
     };
 
     render() {
@@ -59,20 +62,30 @@ class GlobalErrorBoundary extends React.Component {
                             We're sorry, but the application encountered an unexpected error.
                         </p>
 
-                        {/* Technical Error Details (useful for developers/users reporting issues) */}
-                        <div className="bg-[var(--bg-secondary)] p-4 rounded-lg mb-6 text-left overflow-auto max-h-32 border border-[var(--border-color)]">
-                            <code className="text-xs text-red-400 font-mono break-all">
-                                {this.state.error && this.state.error.toString()}
-                            </code>
-                        </div>
+                        {/* Technical Error Details (Only shown in Development) */}
+                        {import.meta.env.DEV && this.state.error && (
+                            <div className="bg-[var(--bg-secondary)] p-4 rounded-lg mb-6 text-left overflow-auto max-h-32 border border-[var(--border-color)]">
+                                <code className="text-xs text-red-400 font-mono break-all">
+                                    {this.state.error.toString()}
+                                </code>
+                            </div>
+                        )}
 
-                        {/* Recovery Action Button */}
-                        <button
-                            onClick={this.handleReload}
-                            className="w-full py-3 px-4 bg-[var(--brand-primary)] hover:opacity-90 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--brand-primary)] focus:ring-offset-[var(--bg-card)]"
-                        >
-                            Reload Application
-                        </button>
+                        {/* Recovery Actions */}
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={this.handleReload}
+                                className="w-full py-3 px-4 bg-[var(--brand-primary)] hover:opacity-90 text-white font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--brand-primary)] focus:ring-offset-[var(--bg-card)]"
+                            >
+                                Reload Application
+                            </button>
+                            <button
+                                onClick={this.handleGoHome}
+                                className="w-full py-3 px-4 border border-[var(--border-color)] hover:bg-[var(--bg-secondary)] text-[var(--text-primary)] font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[var(--brand-primary)]"
+                            >
+                                Return Home
+                            </button>
+                        </div>
                     </div>
                 </div>
             );

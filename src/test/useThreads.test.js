@@ -28,11 +28,12 @@ import { useThreads } from '../features/chat/hooks/useThreads';
 
 const makeThreads = (count, startId = 1) =>
     Array.from({ length: count }, (_, i) => ({
-        threadId: threadIdPrefix + (startId + i),
+        sessionId: sessionIdPrefix + (startId + i),
+        objectId: 'mongo-' + (startId + i),
         title: `Thread ${startId + i}`,
     }));
 
-const threadIdPrefix = 'thread-';
+const sessionIdPrefix = 'sess-';
 
 describe('useThreads', () => {
     beforeEach(() => {
@@ -75,7 +76,7 @@ describe('useThreads', () => {
             // First load: full page (20 items)
             const firstPage = makeThreads(20);
             mockGetAllThreads.mockResolvedValueOnce({ threads: firstPage, hasMore: true });
-            // Page 2 eager load - let it also have more to test loadMore later
+            // Page 2 eager load
             mockGetAllThreads.mockResolvedValueOnce({ threads: [], hasMore: true });
 
             const { result } = renderHook(() => useThreads());
@@ -86,7 +87,7 @@ describe('useThreads', () => {
 
             expect(result.current.hasMore).toBe(true);
 
-            // Load more: 5 items (less than DATA_LIMIT)
+            // Load more: 5 items
             const secondPage = makeThreads(5, 21);
             mockGetAllThreads.mockResolvedValueOnce({ threads: secondPage, hasMore: false });
 
@@ -121,7 +122,6 @@ describe('useThreads', () => {
             act(() => { result.current.loadMore(); });
 
             // Should only have called once for the load more after initial eager loads
-            // Initial is 2 calls (page 1 + page 2)
             expect(mockGetAllThreads).toHaveBeenCalledTimes(3); 
 
             // Clean up
@@ -132,7 +132,6 @@ describe('useThreads', () => {
         });
 
         it('does not fetch when hasMore is false', async () => {
-            // Less than DATA_LIMIT → hasMore = false
             mockGetAllThreads.mockResolvedValueOnce({ threads: makeThreads(5), hasMore: false });
 
             const { result } = renderHook(() => useThreads());
@@ -187,12 +186,13 @@ describe('useThreads', () => {
 
             let success;
             await act(async () => {
-                success = await result.current.deleteThread('thread-2');
+                success = await result.current.deleteThread('sess-2');
             });
 
             expect(success).toBe(true);
             expect(result.current.threads).toHaveLength(2);
-            expect(result.current.threads.some(t => t.threadId === 'thread-2')).toBe(false);
+            expect(result.current.threads.some(t => t.sessionId === 'sess-2')).toBe(false);
+            expect(mockDeleteThread).toHaveBeenCalledWith('mongo-2');
         });
 
         it('returns false on failure without removing', async () => {
@@ -207,14 +207,14 @@ describe('useThreads', () => {
 
             let success;
             await act(async () => {
-                success = await result.current.deleteThread('thread-1');
+                success = await result.current.deleteThread('sess-1');
             });
 
             expect(success).toBe(false);
             expect(result.current.threads).toHaveLength(3);
         });
 
-        it('returns false for null threadId', async () => {
+        it('returns false for null sessionId', async () => {
             mockGetAllThreads.mockResolvedValue({ threads: [], hasMore: false });
 
             const { result } = renderHook(() => useThreads());

@@ -76,7 +76,8 @@ describe('ChatService', () => {
 
             expect(result.threads).toHaveLength(1);
             expect(result.hasMore).toBe(true);
-            expect(result.threads[0].threadId).toBe('sess-abc-123');
+            expect(result.threads[0].sessionId).toBe('sess-abc-123');
+            expect(result.threads[0].objectId).toBe('mongo123');
             expect(result.threads[0].title).toBe('Delhi to dubai');
         });
 
@@ -93,7 +94,6 @@ describe('ChatService', () => {
         });
 
         it('sends POST request with parsed payload and Authorization header', async () => {
-            localStorage.setItem('authToken', 'my-jwt');
             const fetchMock = mockFetch(200, { result: [] });
             vi.stubGlobal('fetch', fetchMock);
 
@@ -126,10 +126,10 @@ describe('ChatService', () => {
             ];
             vi.stubGlobal('fetch', mockFetch(200, rawMessages));
 
-            const result = await ChatService.getThreadMessages('thread-123', 1);
+            const result = await ChatService.getThreadMessages('mongo-123', 1);
 
             // Verify mapping
-            expect(result.threadId).toBe('thread-123');
+            expect(result.objectId).toBe('mongo-123');
             expect(result.messages[0].role).toBe('user'); // customer -> user
             expect(result.messages[0].content).toBe('hello');
 
@@ -139,8 +139,7 @@ describe('ChatService', () => {
             expect(options.method).toBe('POST');
             
             const body = JSON.parse(options.body);
-            expect(body.id).toBe('thread-123');
-            expect(body.page).toBe(1);
+            expect(body.id).toBe('mongo-123');
             expect(body.page).toBe(1);
         });
 
@@ -150,15 +149,15 @@ describe('ChatService', () => {
             await expect(ChatService.getThreadMessages('bad-id')).rejects.toThrow('HTTP 404');
         });
 
-        it('throws immediately if threadId is null', async () => {
+        it('throws immediately if objectId is null', async () => {
             await expect(ChatService.getThreadMessages(null)).rejects.toThrow(
-                'threadId is required'
+                'objectId is required'
             );
         });
 
-        it('throws immediately if threadId is undefined', async () => {
+        it('throws immediately if objectId is undefined', async () => {
             await expect(ChatService.getThreadMessages(undefined)).rejects.toThrow(
-                'threadId is required'
+                'objectId is required'
             );
         });
     });
@@ -168,24 +167,27 @@ describe('ChatService', () => {
         it('returns true on successful deletion', async () => {
             vi.stubGlobal('fetch', mockFetch(200, {}));
 
-            const result = await ChatService.deleteThread('thread-abc');
+            const result = await ChatService.deleteThread('mongo-abc');
 
             expect(result).toBe(true);
 
-            // Verify DELETE method was used
+            // Verify DELETE method was used (actually POST to /delete)
             const [, options] = vi.mocked(fetch).mock.calls[0];
             expect(options.method).toBe('POST');
+            
+            const body = JSON.parse(options.body);
+            expect(body.id).toBe('mongo-abc');
         });
 
         it('throws on HTTP 403', async () => {
             vi.stubGlobal('fetch', mockFetch(403, { detail: 'Forbidden' }));
 
-            await expect(ChatService.deleteThread('thread-abc')).rejects.toThrow('HTTP 403');
+            await expect(ChatService.deleteThread('mongo-abc')).rejects.toThrow('HTTP 403');
         });
 
-        it('throws immediately if threadId is null', async () => {
+        it('throws immediately if objectId is null', async () => {
             await expect(ChatService.deleteThread(null)).rejects.toThrow(
-                'threadId is required'
+                'objectId is required'
             );
         });
     });

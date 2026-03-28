@@ -152,41 +152,6 @@ describe('useChatActions', () => {
         });
     });
 
-    // ── handleRetry ───────────────────────────────────────────────────────
-    describe('handleRetry', () => {
-        it('removes error and user messages and re-sends', async () => {
-            vi.useFakeTimers();
-            const messages = [
-                { role: 'user', content: 'hi' },
-                { role: 'assistant', content: 'Error: something broke', isNew: true }
-            ];
-            const { result, deps } = setupHook({ messages });
-
-            act(() => {
-                result.current.handleRetry(1); // error is at index 1
-            });
-
-            expect(deps.updateActiveSession).toHaveBeenCalled();
-            const { messages: cleaned } = deps.updateActiveSession.mock.calls[0][0];
-            expect(cleaned).toHaveLength(0);
-
-            vi.useRealTimers();
-        });
-
-        it('does nothing if message before error is not from user', () => {
-            const messages = [
-                { role: 'assistant', content: 'previous response' },
-                { role: 'assistant', content: 'Error: fail' },
-            ];
-            const { result, deps } = setupHook({ messages });
-
-            act(() => {
-                result.current.handleRetry(1);
-            });
-
-            expect(deps.updateActiveSession).not.toHaveBeenCalled();
-        });
-    });
 
     // ── handleTypingComplete ──────────────────────────────────────────────
     describe('handleTypingComplete', () => {

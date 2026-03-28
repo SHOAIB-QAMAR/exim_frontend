@@ -1,4 +1,4 @@
-import { FaMagnifyingGlass, FaEllipsisVertical, FaChevronDown, FaShip, FaBars, FaChevronLeft, FaSun, FaMoon, FaPlus } from "react-icons/fa6";
+import { FaMagnifyingGlass, FaShip, FaBars, FaChevronLeft, FaSun, FaMoon, FaPlus } from "react-icons/fa6";
 import { MdDelete } from "react-icons/md";
 import { FaQuestionCircle } from "react-icons/fa";
 import { useTheme } from '../../providers/ThemeContext';
@@ -6,10 +6,16 @@ import React, { useState, useRef, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import Tooltip from '../common/Tooltip';
 
+/**
+ * A sub-component for rendering individual chat thread items with truncation detection.
+ * 
+ * @param {Object} props
+ * @param {string} props.title - The title of the chat thread.
+ * @param {string} props.firstMessage - The preview text of the first message.
+ */
 const ChatItem = ({ title, firstMessage }) => {
     // Reference to the text container to measure its actual width vs visible width
     const textRef = useRef(null);
-
     const [isTruncated, setIsTruncated] = useState(false);
 
     useEffect(() => {
@@ -19,7 +25,6 @@ const ChatItem = ({ title, firstMessage }) => {
             }
         };
         handleResize();
-
         window.addEventListener('resize', handleResize);
         return () => window.removeEventListener('resize', handleResize);
     }, [title]);
@@ -41,9 +46,12 @@ const ChatItem = ({ title, firstMessage }) => {
     );
 };
 
+/**
+ * Main Navigation Sidebar component.
+ */
 const Sidebar = ({
     collapsed, toggleSidebar, isOpenMobile, closeMobileSidebar,
-    onSearchClick, onNewChat, threads = [], currThreadId, onLoadChat,
+    onSearchClick, onNewChat, threads = [], activeSessionId, onLoadChat,
     onDeleteChat, onFAQClick, showFAQ, isLoading, fetchError,
     onRetryFetch, loadMore, hasMore, isFetchingMore
 }) => {
@@ -57,11 +65,11 @@ const Sidebar = ({
     const pressTimer = useRef(null);
     const isLongPressing = useRef(false);
 
-    const handleTouchStart = (threadId) => {
+    const handleTouchStart = (sessionId) => {
         isLongPressing.current = false;
         pressTimer.current = setTimeout(() => {
             isLongPressing.current = true;
-            setTouchEllipsisId(threadId);
+            setTouchEllipsisId(sessionId);
             // Optional: Trigger vibration feedback
             if (window.navigator && window.navigator.vibrate) {
                 window.navigator.vibrate(50);
@@ -100,10 +108,10 @@ const Sidebar = ({
 
     // ── EVENT HANDLERS ──
 
-    const handleDeleteChat = async (threadId) => {
+    const handleDeleteChat = async (sessionId) => {
         if (!onDeleteChat) return;
         setIsDeleting(true);
-        await onDeleteChat(threadId);
+        await onDeleteChat(sessionId);
         setIsDeleting(false);
         setActiveMenu(null);
     };
@@ -205,8 +213,8 @@ const Sidebar = ({
 
     const renderThreadItem = (thread) => (
         <div
-            key={thread.threadId}
-            className={`chat-item flex items-center p-1.5 rounded-lg cursor-pointer hover:bg-[var(--bg-tertiary)] transition-all group relative ${currThreadId === thread.threadId ? 'bg-[var(--bg-tertiary)]' : ''}`}
+            key={thread.sessionId}
+            className={`chat-item flex items-center p-1.5 rounded-lg cursor-pointer hover:bg-[var(--bg-tertiary)] transition-all group relative ${activeSessionId === thread.sessionId ? 'bg-[var(--bg-tertiary)]' : ''}`}
             onClick={() => {
                 if (isLongPressing.current) {
                     isLongPressing.current = false;
@@ -215,9 +223,9 @@ const Sidebar = ({
                 // Block loadMore from firing during the re-render caused by this click
                 justClickedChatRef.current = true;
                 setTimeout(() => { justClickedChatRef.current = false; }, 500);
-                onLoadChat(thread.threadId);
+                onLoadChat(thread);
             }}
-            onTouchStart={() => handleTouchStart(thread.threadId)}
+            onTouchStart={() => handleTouchStart(thread.sessionId)}
             onTouchEnd={handleTouchEnd}
             onTouchCancel={handleTouchEnd}
             onTouchMove={handleTouchMove}
@@ -232,52 +240,55 @@ const Sidebar = ({
 
             {/* The 3-dots context menu button (only visible on hover unless active) */}
             <button
-                className={`chat-menu p-1.5 rounded-full hover:bg-[var(--bg-secondary)] transition-all ${activeMenu === thread.threadId || touchEllipsisId === thread.threadId
+                className={`chat-menu p-1.5 rounded-full hover:bg-[var(--bg-secondary)] transition-all ${activeMenu === thread.sessionId || touchEllipsisId === thread.sessionId
                     ? 'opacity-100 bg-[var(--bg-secondary)]'
                     : 'opacity-0 md:group-hover:opacity-100'
                     }`}
+                aria-label="Delete chat"
                 onClick={(e) => {
-                    // Prevent the click from bubbling up to the `onLoadChat` handler attached to the parent wrapper
                     e.stopPropagation();
-                    // Toggle the active menu state
-                    setActiveMenu(activeMenu === thread.threadId ? null : thread.threadId);
+                    setActiveMenu(activeMenu === thread.sessionId ? null : thread.sessionId);
                     setTouchEllipsisId(null);
                 }}
             >
-                <MdDelete className="text-[var(--text-secondary)] text-sm" />
+                <MdDelete className="text-[var(--text-secondary)] text-sm" aria-hidden="true" />
             </button>
 
             {/* Delete Chat Confirmation Modal */}
             {/* Rendered using a React Portal into document.body to ensure it renders over all z-index contexts */}
-            {activeMenu === thread.threadId && ReactDOM.createPortal(
+            {activeMenu === thread.sessionId && ReactDOM.createPortal(
                 <>
                     {/* Dark blurred background overlay */}
                     <div
                         className="fixed inset-0 z-[9998] bg-black/60 backdrop-blur-md"
+                        aria-hidden="true"
                         onClick={(e) => {
                             e.stopPropagation();
-                            setActiveMenu(null); // Clicking overlay closes modal
+                            setActiveMenu(null);
                         }}
                     ></div>
 
                     {/* Centered Modal Container */}
                     <div
                         className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
-                        onClick={(e) => e.stopPropagation()} // Stop propagation from the flex container (optional but safe)
+                        onClick={(e) => e.stopPropagation()}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby={`delete-confirm-${thread.sessionId}`}
                     >
-                        {/* Actual white modal box */}
                         <div
                             className="bg-[var(--bg-card)] rounded-2xl shadow-xl border border-[var(--border-color)] w-[380px]"
-                            onClick={(e) => e.stopPropagation()} // Vital: Stop clicks ON the modal from bubbling to the overlay handler above
+                            onClick={(e) => e.stopPropagation()}
                         >
                             <div className="px-6 py-4">
-                                <h3 className="text-xl py-2 font-semibold text-[var(--text-primary)]">Delete Chat?</h3>
+                                <h3 id={`delete-confirm-${thread.sessionId}`} className="text-xl py-2 font-semibold text-[var(--text-primary)]">Delete Chat?</h3>
                                 <p className="text-sm text-[var(--text-secondary)] mt-2">
                                     Permanently delete <span className="font-medium text-[var(--text-primary)]">{thread.title}.</span>
                                 </p>
                             </div>
                             <div className="flex justify-end gap-4 p-4 pt-2">
                                 <button
+                                    type="button"
                                     className="px-5 py-2 rounded-lg text-sm font-medium hover:bg-[var(--bg-tertiary)] transition-colors"
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -287,10 +298,11 @@ const Sidebar = ({
                                     Cancel
                                 </button>
                                 <button
+                                    type="button"
                                     className="px-5 py-2 rounded-lg bg-[var(--brand-primary)] text-white text-sm font-semibold hover:opacity-90 transition-opacity"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDeleteChat(thread.threadId);
+                                        handleDeleteChat(thread.sessionId);
                                     }}
                                 >
                                     {isDeleting ? "Deleting..." : "Delete"}
@@ -299,7 +311,7 @@ const Sidebar = ({
                         </div>
                     </div>
                 </>,
-                document.body // Injects modal directly into <body>
+                document.body
             )}
         </div>
     );
@@ -326,26 +338,28 @@ const Sidebar = ({
                                 </div>
 
                                 <button
+                                    type="button"
                                     className="p-2 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                                     onClick={isOpenMobile ? closeMobileSidebar : toggleSidebar}
+                                    aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
                                 >
-                                    <FaChevronLeft className="w-5 h-5" />
+                                    <FaChevronLeft className="w-5 h-5" aria-hidden="true" />
                                 </button>
                             </>
                         ) : (
                             /* Collapsed Mode: Toggle Button (Ship -> Hamburger) */
                             <button
+                                type="button"
                                 className="sidebar-toggle-btn group relative p-0 rounded-lg bg-[var(--brand-primary)] text-white shadow-md hover:shadow-lg transition-all duration-300 transform active:scale-95 flex items-center justify-center w-8 h-8 mx-auto mt-1"
                                 onClick={toggleSidebar}
+                                aria-label="Expand sidebar"
                             >
-                                {/* Default Icon (Ship) */}
                                 <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 opacity-100 group-hover:opacity-0`}>
-                                    <FaShip className="text-sm" />
+                                    <FaShip className="text-sm" aria-hidden="true" />
                                 </div>
 
-                                {/* Hamburger Icon on Hover */}
                                 <div className={`absolute inset-0 flex items-center justify-center transition-opacity duration-200 opacity-0 group-hover:opacity-100`}>
-                                    <FaBars className="text-sm" />
+                                    <FaBars className="text-sm" aria-hidden="true" />
                                 </div>
                             </button>
                         )}

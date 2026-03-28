@@ -7,15 +7,15 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 // ─── Mock WebSocket context ───────────────────────────────────────────────────
 const mockSubscribe = vi.fn(() => vi.fn());   // returns an unsubscribe fn
-const mockConnectThread = vi.fn();
-const mockDisconnectThread = vi.fn();
+const mockConnectSession = vi.fn();
+const mockDisconnectSession = vi.fn();
 const mockSendMessage = vi.fn();
 
 vi.mock('../features/chat/context/WebSocketContext', () => ({
     useWebSocketService: () => ({
         subscribe: mockSubscribe,
-        connectThread: mockConnectThread,
-        disconnectThread: mockDisconnectThread,
+        connectSession: mockConnectSession,
+        disconnectSession: mockDisconnectSession,
         sendMessage: mockSendMessage,
     }),
 }));
@@ -29,7 +29,7 @@ import { useWebSocket } from '../features/chat/hooks/useWebSocket';
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
 const makeSession = (overrides = {}) => ({
-    id: 'thread-1',
+    id: 'sess-1',
     messages: [],
     isThinking: false,
     thinkingSteps: [],
@@ -41,6 +41,7 @@ const makeSession = (overrides = {}) => ({
  * the resulting updated session.
  */
 function runHandleMessage(sessionState, data) {
+    vi.useFakeTimers();
     let capturedSessions = [sessionState];
     const setActiveSessions = vi.fn(updater => {
         capturedSessions = updater(capturedSessions);
@@ -50,7 +51,7 @@ function runHandleMessage(sessionState, data) {
         useWebSocket(
             capturedSessions,
             setActiveSessions,
-            'thread-1',
+            'sess-1',
             vi.fn(),
             vi.fn(),
             vi.fn()
@@ -61,10 +62,17 @@ function runHandleMessage(sessionState, data) {
     const handleMessage = mockSubscribe.mock.calls[0][0];
 
     act(() => {
-        handleMessage('thread-1', data);
+        handleMessage('sess-1', data);
     });
 
-    return capturedSessions[0];
+    // Advance timers to trigger debounced state updates if a chunk was received
+    act(() => {
+        vi.advanceTimersByTime(100);
+    });
+
+    const result = capturedSessions[0];
+    vi.useRealTimers();
+    return result;
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -303,16 +311,16 @@ describe('useWebSocket — handleMessage', () => {
         });
     });
 
-    // ── No threadId ──────────────────────────────────────────────────────
-    describe('missing threadId', () => {
-        it('returns without modifying sessions when threadId is falsy', () => {
+    // ── No sessionId ──────────────────────────────────────────────────────
+    describe('missing sessionId', () => {
+        it('returns without modifying sessions when sessionId is falsy', () => {
             let capturedSessions = [makeSession()];
             const setActiveSessions = vi.fn(updater => {
                 capturedSessions = updater(capturedSessions);
             });
 
             renderHook(() =>
-                useWebSocket(capturedSessions, setActiveSessions, 'thread-1', vi.fn(), vi.fn(), vi.fn())
+                useWebSocket(capturedSessions, setActiveSessions, 'sess-1', vi.fn(), vi.fn(), vi.fn())
             );
 
             const handleMessage = mockSubscribe.mock.calls[0][0];

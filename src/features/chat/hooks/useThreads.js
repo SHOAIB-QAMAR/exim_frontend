@@ -3,6 +3,14 @@ import ChatService from '../../../services/chat.service';
 
 const DATA_LIMIT = 20;
 
+/**
+ * useThreads Hook
+ * 
+ * Manages the thread history list, pagination, and deletion.
+ * Implements a "look-ahead" loading strategy to prepopulate the sidebar.
+ * 
+ * @returns {Object} State and methods for thread management
+ */
 export const useThreads = () => {
     const [threads, setThreads] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -10,12 +18,17 @@ export const useThreads = () => {
     const [hasMore, setHasMore] = useState(true);
     const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-    // Use ref to track current skip to avoid dependency loops if not needed
+    // skipRef tracks pagination offset without triggering re-renders
     const skipRef = useRef(0);
 
+    /**
+     * Fetches a batch of threads from the server.
+     * 
+     * @param {boolean} [isLoadMore=false] - If true, appends results to the current list
+     */
     const fetchThreads = useCallback(async (isLoadMore = false) => {
         const loadingMore = isLoadMore === true;
-        
+
         if (loadingMore) {
             setIsFetchingMore(true);
         } else {
@@ -33,22 +46,21 @@ export const useThreads = () => {
 
             if (isLoadMore) {
                 setThreads(prev => {
-                    // Filter out duplicates just in case
-                    const existingIds = new Set(prev.map(t => t.threadId));
-                    const newThreads = newThreadsData.filter(t => !existingIds.has(t.threadId));
+                    // Prevent duplicate thread entries
+                    const existingIds = new Set(prev.map(t => t.sessionId));
+                    const newThreads = newThreadsData.filter(t => !existingIds.has(t.sessionId));
                     return [...prev, ...newThreads];
                 });
             } else {
                 setThreads(newThreadsData);
             }
 
-            // Update skip and hasMore based on API response
             setHasMore(apiHasMore);
             if (apiHasMore) {
                 skipRef.current = currentSkip + DATA_LIMIT;
             }
-        } catch {
-
+        } catch (error) {
+            console.error('[useThreads] Fetch failed:', error);
             setFetchError(loadingMore ? 'Failed to load more chat history' : 'Failed to load chat history');
         } finally {
             setIsLoading(false);
@@ -56,16 +68,20 @@ export const useThreads = () => {
         }
     }, []);
 
+    // Tracks initial mountain state for StrictMode compatibility
     const hasLoadedRef = useRef(false);
 
+    /**
+     * Initial Load: Fetches the first two pages of history to provide a better UX.
+     */
     useEffect(() => {
         if (hasLoadedRef.current) return; // Prevent StrictMode double-fire
         hasLoadedRef.current = true;
 
         const loadInitialPages = async () => {
             await fetchThreads(); // Load page 1
-            // Immediately load page 2 after page 1 finishes
-            if (skipRef.current > 0) { // Safety check to ensure page 1 loaded successfully
+            // Immediately load page 2 after page 1 finishes to prepopulate sidebar
+            if (skipRef.current > 0) {
                 await fetchThreads(true);
             }
         };
@@ -73,37 +89,60 @@ export const useThreads = () => {
         loadInitialPages();
     }, [fetchThreads]);
 
+    /**
+     * Trigger for manual scroll-based pagination.
+     */
     const loadMore = useCallback(() => {
         if (!isFetchingMore && hasMore) {
             fetchThreads(true);
         }
     }, [fetchThreads, isFetchingMore, hasMore]);
 
-    const deleteThread = async (threadId) => {
+    /**
+     * Deletes a thread locally and on the server.
+     * 
+     * @param {string} sessionId - ID of the thread to remove
+     * @returns {Promise<boolean>} Success status
+     */
+    const deleteThread = useCallback(async (sessionId) => {
         try {
-            if (!threadId) return false;
-            
-            const threadToDel = threads.find(t => t.threadId === threadId);
-            const objectId = threadToDel?.objectId || threadToDel?._id || threadId;
+            if (!sessionId) return false;
+
+            const threadToDel = threads.find(t => t.sessionId === sessionId);
+            const objectId = threadToDel?.objectId || threadToDel?._id || sessionId;
 
             await ChatService.deleteThread(objectId);
-            setThreads(prev => prev.filter(t => t.threadId !== threadId));
+            setThreads(prev => prev.filter(t => t.sessionId !== sessionId));
             return true;
-        } catch {
-
+        } catch (error) {
+            console.error('[useThreads] Delete failed:', error);
             return false;
         }
-    };
+    }, [threads]);
 
-    // Moves a thread to the top of the sidebar list locally (no API call)
-    const moveThreadToTop = useCallback((threadId) => {
+    /**
+     * Optimistically moves a thread to the top of the list.
+     * Often used when a message is sent in an existing thread.
+     */
+    const moveThreadToTop = useCallback((sessionId) => {
         setThreads(prev => {
-            const idx = prev.findIndex(t => t.threadId === threadId);
-            if (idx <= 0) return prev; // Already at top or not found
+            const idx = prev.findIndex(t => t.sessionId === sessionId);
+            if (idx <= 0) return prev;
             const thread = prev[idx];
             return [thread, ...prev.filter((_, i) => i !== idx)];
         });
     }, []);
 
-    return { threads, setThreads, fetchThreads, deleteThread, moveThreadToTop, isLoading, fetchError, loadMore, hasMore, isFetchingMore };
+    return {
+        threads,
+        setThreads,
+        fetchThreads,
+        deleteThread,
+        moveThreadToTop,
+        isLoading,
+        fetchError,
+        loadMore,
+        hasMore,
+        isFetchingMore
+    };
 };

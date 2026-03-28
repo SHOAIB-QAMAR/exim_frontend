@@ -1,6 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId } from 'react';
 import { FaChevronDown, FaChevronUp, FaXmark } from "react-icons/fa6";
 
+/**
+ * FAQ Data
+ * Static collection of common questions and answers related to logistics and freight.
+ */
 const faqData = [
     {
         question: "What are freight rates and how are they calculated?",
@@ -79,15 +83,30 @@ const faqData = [
     }
 ];
 
+/**
+ * FAQ Component
+ * 
+ * Displays a list of frequently asked questions in an accordion format.
+ * Includes a "Ask about this" feature to trigger a chat interaction.
+ * 
+ * @param {Object} props
+ * @param {Function} props.onFeatureClick - Callback to start a chat about a specific question
+ * @param {Function} props.onClose - Callback to close the FAQ section
+ */
 const FAQ = ({ onFeatureClick, onClose }) => {
     const [loaded, setLoaded] = useState(false);
     const [openIndex, setOpenIndex] = useState(null);
+    const baseId = useId();
 
     useEffect(() => {
         const timer = setTimeout(() => setLoaded(true), 50);
         return () => clearTimeout(timer);
     }, []);
 
+    /**
+     * Toggles the accordion state for a specific FAQ item.
+     * @param {number} idx - Index of the item to toggle
+     */
     const toggleItem = (idx) => {
         setOpenIndex(openIndex === idx ? null : idx);
     };
@@ -98,50 +117,71 @@ const FAQ = ({ onFeatureClick, onClose }) => {
             <div className="flex justify-between items-center mb-6">
                 <h3 className="text-xl font-bold text-[var(--text-primary)] uppercase tracking-wider">Frequently Asked Questions</h3>
                 <button
+                    type="button"
                     onClick={onClose}
                     className="p-2 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                     aria-label="Close FAQ"
                 >
-                    <FaXmark className="w-5 h-5 rotate-180" />
+                    <FaXmark className="w-5 h-5" aria-hidden="true" />
                 </button>
             </div>
 
             {/* FAQ List */}
-            <div className={`flex flex-col border-t border-[var(--border-color)] max-h-[250px] overflow-y-auto custom-scrollbar pr-2 transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}>
+            <div 
+                className={`flex flex-col border-t border-[var(--border-color)] max-h-[250px] overflow-y-auto custom-scrollbar pr-2 transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
+                role="region"
+                aria-label="Questions list"
+            >
                 {faqData.map((item, idx) => {
                     const isOpen = openIndex === idx;
+                    const itemId = `${baseId}-item-${idx}`;
+                    const contentId = `${baseId}-content-${idx}`;
+
                     return (
                         <div
-                            key={idx}
+                            key={itemId}
                             className="faq-item border-b border-[var(--border-color)] transition-all duration-300"
                         >
                             {/* Question Header */}
                             <button
-                                className="w-full flex items-center justify-between py-5 text-left group"
+                                type="button"
+                                id={itemId}
+                                aria-expanded={isOpen}
+                                aria-controls={contentId}
+                                className="w-full flex items-center justify-between py-5 text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] rounded-lg px-2 -mx-2"
                                 onClick={() => toggleItem(idx)}
                             >
                                 <span className={`text-base font-medium transition-colors ${isOpen ? 'text-[var(--brand-primary)]' : 'text-[var(--text-primary)] group-hover:text-[var(--brand-primary)]'}`}>
                                     {item.question}
                                 </span>
-                                <span className="text-[var(--text-secondary)] text-sm ml-4 transition-transform duration-300">
+                                <span className="text-[var(--text-secondary)] text-sm ml-4 transition-transform duration-300" aria-hidden="true">
                                     {isOpen ? <FaChevronUp /> : <FaChevronDown />}
                                 </span>
                             </button>
 
                             {/* Answer Content */}
-                            <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-40 opacity-100 mb-5' : 'max-h-0 opacity-0'}`}>
-                                <p className="text-base text-[var(--text-secondary)] leading-relaxed">
-                                    {item.answer}
-                                </p>
-                                <button
-                                    className="mt-3 text-sm text-[var(--brand-primary)] font-medium hover:underline flex items-center gap-1 opacity-90 hover:opacity-100"
-                                    onClick={(e) => {
-                                        e.stopPropagation();
-                                        onFeatureClick(item.question);
-                                    }}
-                                >
-                                    Ask about this
-                                </button>
+                            <div 
+                                id={contentId}
+                                role="region"
+                                aria-labelledby={itemId}
+                                className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-40 opacity-100 mb-5' : 'max-h-0 opacity-0'}`}
+                            >
+                                <div className="px-2">
+                                    <p className="text-base text-[var(--text-secondary)] leading-relaxed">
+                                        {item.answer}
+                                    </p>
+                                    <button
+                                        type="button"
+                                        className="mt-3 text-sm text-[var(--brand-primary)] font-medium hover:underline flex items-center gap-1 opacity-90 hover:opacity-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--brand-primary)]"
+                                        onClick={(e) => {
+                                            e.stopPropagation();
+                                            onFeatureClick(item.question);
+                                        }}
+                                        aria-label={`Ask about: ${item.question}`}
+                                    >
+                                        Ask about this
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     );
@@ -150,6 +190,5 @@ const FAQ = ({ onFeatureClick, onClose }) => {
         </div>
     );
 };
-
 
 export default FAQ;

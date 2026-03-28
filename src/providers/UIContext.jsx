@@ -1,23 +1,36 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
 
+/**
+ * UIContext
+ * Global state management for layout components, modals, and navigation panels.
+ */
 const UIContext = createContext();
 
+/**
+ * UIProvider Component
+ * 
+ * Centralizes the state for various UI elements like sidebars, search panels, 
+ * and feature modals. Provides stable callback references to prevent 
+ * unnecessary re-renders of consuming components.
+ * 
+ * @param {Object} props
+ * @param {React.ReactNode} props.children - Child components
+ */
 export const UIProvider = ({ children }) => {
-    // Layout State
+    // ── LAYOUT STATE ──
     const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
     const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-    // Panel State
+    // ── PANEL STATE ──
     const [searchPanelOpen, setSearchPanelOpen] = useState(false);
-    // ContextPanel state moved to useChatSessions (per-tab)
     const [threadSwitcherOpen, setThreadSwitcherOpen] = useState(false);
 
-    // Feature Modals
+    // ── FEATURE MODALS ──
     const [showFAQ, setShowFAQ] = useState(false);
     const [langOpen, setLangOpen] = useState(false);
 
-    // Derived State / Helpers
+    // ── ACTIONS & HANDLERS ──
     const toggleSidebar = useCallback(() => setSidebarCollapsed(prev => !prev), []);
     const toggleMobileSidebar = useCallback(() => setMobileSidebarOpen(prev => !prev), []);
     const closeMobileSidebar = useCallback(() => setMobileSidebarOpen(false), []);
@@ -25,34 +38,38 @@ export const UIProvider = ({ children }) => {
     const openSearchPanel = useCallback(() => {
         setShowFAQ(false);
         setSearchPanelOpen(true);
-        if (window.innerWidth <= 768) closeMobileSidebar();
-    }, [closeMobileSidebar]);
+        // Only close sidebar on small screens to maintain layout on desktop
+        if (window.innerWidth <= 768) setMobileSidebarOpen(false);
+    }, []);
 
     const closeSearchPanel = useCallback(() => setSearchPanelOpen(false), []);
 
     const openFAQ = useCallback(() => {
         setSearchPanelOpen(false);
         setShowFAQ(true);
-        if (window.innerWidth <= 768) closeMobileSidebar();
-    }, [closeMobileSidebar]);
+        if (window.innerWidth <= 768) setMobileSidebarOpen(false);
+    }, []);
 
-
-    // Global Event Listeners (Escape Key)
+    /**
+     * Global keyboard shortcuts (Escape key) to dismiss open panels/modals.
+     */
     useEffect(() => {
-        const handleEsc = (e) => {
+        const handleKeyDown = (e) => {
             if (e.key === 'Escape') {
-                closeSearchPanel();
+                setSearchPanelOpen(false);
                 setLangOpen(false);
-                // ContextPanel close handled in Layout.jsx
                 setThreadSwitcherOpen(false);
                 setShowFAQ(false);
+                setMobileSidebarOpen(false);
             }
         };
-        window.addEventListener('keydown', handleEsc);
-        return () => window.removeEventListener('keydown', handleEsc);
-    }, [closeSearchPanel]);
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, []);
 
-    const value = {
+    // ── CONTEXT VALUE MEMOIZATION ──
+    // Ensures that consumers only re-render when a relevant state or handler actually changes.
+    const value = useMemo(() => ({
         // State
         sidebarCollapsed,
         mobileSidebarOpen,
@@ -61,7 +78,7 @@ export const UIProvider = ({ children }) => {
         showFAQ,
         langOpen,
 
-        // Setters & Actions
+        // Setters & Actions (Memoized hooks)
         setSidebarCollapsed,
         setMobileSidebarOpen,
         toggleSidebar,
@@ -76,7 +93,20 @@ export const UIProvider = ({ children }) => {
         setShowFAQ,
         openFAQ,
         setLangOpen
-    };
+    }), [
+        sidebarCollapsed,
+        mobileSidebarOpen,
+        searchPanelOpen,
+        threadSwitcherOpen,
+        showFAQ,
+        langOpen,
+        toggleSidebar,
+        toggleMobileSidebar,
+        closeMobileSidebar,
+        openSearchPanel,
+        closeSearchPanel,
+        openFAQ
+    ]);
 
     return (
         <UIContext.Provider value={value}>
@@ -85,6 +115,13 @@ export const UIProvider = ({ children }) => {
     );
 };
 
+/**
+ * useUI Hook
+ * 
+ * Custom hook to consume the UIContext.
+ * @returns {Object} UI state and action handlers
+ * @throws {Error} If used outside of a UIProvider
+ */
 export const useUI = () => {
     const context = useContext(UIContext);
     if (!context) {

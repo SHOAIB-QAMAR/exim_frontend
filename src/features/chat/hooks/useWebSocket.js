@@ -1,42 +1,77 @@
 import { useEffect, useRef, useCallback } from 'react';
 import { useWebSocketService } from '../context/WebSocketContext';
 
-export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId, onThreadsChanged, promoteSession, moveThreadToTop) => {
+/**
+ * useWebSocket Hook
+ * 
+ * Orchestrates the real-time communication between the UI and the backend.
+ * Handles:
+ * 1. Subscription to the shared WebSocket service.
+ * 2. Processing incoming streaming chunks (legacy & advanced formats).
+ * 3. Managing thinking steps, tool calls, and metrics display.
+ * 4. Automatic connection/disconnection of threads based on active tabs.
+ * 5. Session promotion (local UUID to backend ID) and sidebar synchronization.
+ * 
+ * @param {Array} activeSessions - List of open chat sessions
+ * @param {Function} setActiveSessions - State setter for sessions
+ * @param {string} activeSessionId - Current active session ID
+ * @param {Function} onThreadsChanged - Callback to refresh thread history
+ * @param {Function} promoteSession - Callback to finalize a new session ID
+ * @param {Function} moveThreadToTop - Callback to reorder the sidebar
+ * 
+ * @returns {Object} { sendMessage }
+ */
+export const useWebSocket = (
+    activeSessions,
+    setActiveSessions,
+    activeSessionId,
+    onThreadsChanged,
+    promoteSession,
+    moveThreadToTop
+) => {
     const webSocketService = useWebSocketService();
-    const connectedThreadsRef = useRef(new Set());
-    const hasSentMessageRef = useRef(false); // Only refresh thread list after user sends a new message
-    const pendingChunksRef = useRef({}); // Buffer for debouncing text streams
+
+    // Tracks which sessions are currently connected to avoid redundant operations
+    const connectedSessionsRef = useRef(new Set());
+
+    // State to determine if we should trigger sidebar refreshes after a stream ends
+    const hasSentMessageRef = useRef(false);
+
+    // Buffering system for text chunks to reduce React render frequency
+    const pendingChunksRef = useRef({});
     const streamTimerRef = useRef(null);
-    const activeThreadIds = activeSessions.map(s => s.id).join(',');
 
-    // Handles incoming WebSocket messages (streaming chunks or complete messages)
+    // Memoized key for active session IDs to trigger connection effects
+    const activeSessionIds = activeSessions.map(s => s.id).join(',');
 
-    const handleMessage = useCallback((threadId, data) => {
-
+    /**
+     * Primary message dispatcher for incoming WebSocket data.
+     * Decodes multiple backend formats and updates the relevant session state.
+     */
+    const handleMessage = useCallback((sessionId, data) => {
         try {
-            if (!threadId) {
-                return;
-            }
+            if (!sessionId) return;
 
-            // Collect promotion info OUTSIDE the updater to avoid nested setState
             let promotionInfo = null;
             let shouldRefreshThreads = false;
             let shouldMoveToTop = false;
             let moveToTopId = null;
 
-            // --- PENDING CHUNK INTERCEPT FOR UI DEBOUNCING ---
-            const legacyDoneCondition = data.done === true || data.TextCompleted === true || (typeof data.response === 'string' && data.response.includes('@//done//@'));
+            // --- DEBOUNCED STREAMING HANDLER ---
+            // Consolidates rapid-fire text chunks into a single periodic update
+            const legacyDoneCondition = data.done === true ||
+                data.TextCompleted === true ||
+                (typeof data.response === 'string' && data.response.includes('@//done//@'));
             const isPureLegacyChunk = (data.chunk || data.response) && !legacyDoneCondition && !data.reply;
             const isPureAdvancedChunk = data.type === 'message_chunk';
 
             if (isPureLegacyChunk || isPureAdvancedChunk) {
                 const legacyChunkText = data.chunk || data.response || '';
                 const cleanLegacyChunk = typeof legacyChunkText === 'string' ? legacyChunkText.replace('@//done//@', '') : legacyChunkText;
-                
                 const chunkToAppend = isPureAdvancedChunk ? data.content : cleanLegacyChunk;
 
                 if (chunkToAppend) {
-                    pendingChunksRef.current[threadId] = (pendingChunksRef.current[threadId] || '') + chunkToAppend;
+                    pendingChunksRef.current[sessionId] = (pendingChunksRef.current[sessionId] || '') + chunkToAppend;
 
                     if (!streamTimerRef.current) {
                         streamTimerRef.current = setTimeout(() => {
@@ -53,35 +88,35 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                                 let lMsg = msgs[lastIdx];
 
                                 if (lMsg?.role === 'assistant' && lMsg.isStreaming) {
-                                  msgs[lastIdx] = { ...lMsg, content: lMsg.content + pending };
+                                    msgs[lastIdx] = { ...lMsg, content: lMsg.content + pending };
                                 } else {
-                                  msgs.push({
-                                      role: 'assistant',
-                                      content: pending,
-                                      isStreaming: true,
-                                      isNew: false,
-                                      timestamp: Date.now()
-                                  });
+                                    msgs.push({
+                                        role: 'assistant',
+                                        content: pending,
+                                        isStreaming: true,
+                                        isNew: false,
+                                        timestamp: Date.now()
+                                    });
                                 }
                                 return { ...session, messages: msgs };
                             }));
                         }, 60);
                     }
                 }
-                return; // Defers render entirely until timer fires
+                return; // Suppress immediate render as chunk is buffered
             }
-            // ------------------------------------------------
+            // ------------------------------------
 
             setActiveSessions(prev => prev.map(s => {
-                if (s.id !== threadId) return s;
+                if (s.id !== sessionId) return s;
 
                 const messages = [...s.messages];
                 let lastMsgIndex = messages.length - 1;
                 let lastMsg = messages[lastMsgIndex];
 
-                // Drain any pending chunks synchronously first
-                if (pendingChunksRef.current[threadId]) {
-                    const pending = pendingChunksRef.current[threadId];
+                // Flush any buffered chunks before processing a terminal or status event
+                if (pendingChunksRef.current[sessionId]) {
+                    const pending = pendingChunksRef.current[sessionId];
                     if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
                         lastMsg = { ...lastMsg, content: lastMsg.content + pending };
                         messages[lastMsgIndex] = lastMsg;
@@ -96,13 +131,12 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                         messages.push(lastMsg);
                         lastMsgIndex = messages.length - 1;
                     }
-                    delete pendingChunksRef.current[threadId];
+                    delete pendingChunksRef.current[sessionId];
                 }
 
-                // Initialize thinking/metrics if not present
                 const thinkingSteps = s.thinkingSteps || [];
 
-                // Handle legacy and backend specific formats (response, chunk, done, reply)
+                // 1. LEGACY & SIMPLE FORMATS (chunk, done, reply, response)
                 if (data.chunk || data.done !== undefined || data.reply || data.response !== undefined || data.TextCompleted !== undefined) {
                     const isDone = data.done === true ||
                         data.TextCompleted === true ||
@@ -119,7 +153,7 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                         const isNewChat = s.isNew;
                         const backendSessionId = data.threadId || data.thread_id || data.session_id;
 
-                        // Collect promotion info — don't call promoteSession here
+                        // Identify if this local session needs to be promoted to a backend thread
                         if (isNewChat && backendSessionId && backendSessionId !== s.id) {
                             promotionInfo = { oldId: s.id, newId: backendSessionId };
                         }
@@ -162,7 +196,7 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                     return s;
                 }
 
-                // Handle Advanced Streaming Format (type: 'status' | 'message_chunk' | etc.)
+                // 2. ADVANCED STREAMING FORMATS (type-based status and execution steps)
                 switch (data.type) {
                     case 'status':
                         {
@@ -173,9 +207,7 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                                 type: 'status',
                                 time: data.time || null
                             };
-
                             const newThinking = [...thinkingSteps];
-
                             if (isComplete && newThinking.length > 0) {
                                 const lastStep = newThinking[newThinking.length - 1];
                                 if (lastStep.status === 'in-progress') {
@@ -186,7 +218,6 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                             } else {
                                 newThinking.push(newStep);
                             }
-
                             return { ...s, isThinking: true, thinkingSteps: newThinking };
                         }
 
@@ -199,68 +230,64 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                                 response_generation: 'Response Generation'
                             };
                             if (phaseMap[data.phase]) {
-                                const newStep = {
+                                const newThinking = [...thinkingSteps, {
                                     message: `${phaseMap[data.phase]} complete`,
                                     status: 'completed',
                                     time: data.time,
                                     type: 'phase'
-                                };
-                                const newThinking = [...thinkingSteps, newStep];
+                                }];
                                 return { ...s, isThinking: true, thinkingSteps: newThinking };
                             }
                             return s;
                         }
 
                     case 'tool_call':
-                        {
-                            const newStep = {
+                        return {
+                            ...s,
+                            isThinking: true,
+                            thinkingSteps: [...thinkingSteps, {
                                 message: `Calling: ${data.name}`,
                                 status: data.status || 'in-progress',
                                 type: 'tool_call',
                                 details: data.args
-                            };
-                            const newThinking = [...thinkingSteps, newStep];
-                            return { ...s, isThinking: true, thinkingSteps: newThinking };
-                        }
+                            }]
+                        };
 
                     case 'tool_result':
-                        {
-                            const newStep = {
+                        return {
+                            ...s,
+                            isThinking: true,
+                            thinkingSteps: [...thinkingSteps, {
                                 message: 'Tool output received',
                                 status: 'completed',
                                 type: 'tool_result',
                                 time: data.time || null,
                                 details: data.content
-                            };
-                            const newThinking = [...thinkingSteps, newStep];
-                            return { ...s, isThinking: true, thinkingSteps: newThinking };
-                        }
+                            }]
+                        };
 
                     case 'phase_metric':
-                        {
-                            const newStep = {
+                        return {
+                            ...s,
+                            isThinking: true,
+                            thinkingSteps: [...thinkingSteps, {
                                 message: data.phase === 'response_ttft' ? `Time to first token: ${data.time}ms` : `Metric phase: ${data.phase}`,
                                 status: 'completed',
                                 type: 'phase_metric',
                                 time: data.time || null
-                            };
-                            const newThinking = [...thinkingSteps, newStep];
-                            return { ...s, isThinking: true, thinkingSteps: newThinking };
-                        }
-
+                            }]
+                        };
 
                     case 'message_start':
                         return { ...s, isThinking: false };
 
                     case 'message_chunk': {
-                        const content = data.content;
-
                         if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
-                            messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + content };
+                            messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + data.content };
                         } else {
                             messages.push({
                                 role: 'assistant',
-                                content: content,
+                                content: data.content,
                                 isStreaming: true,
                                 isNew: false,
                                 timestamp: Date.now()
@@ -275,17 +302,16 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                             messages[lastMsgIndex] = { ...lastMsg, isStreaming: false, isNew: true };
                         }
 
-                        const isNewChatAdvanced = s.isNew;
-                        const backendIdAdvanced = data.threadId || data.thread_id || data.session_id;
+                        const isNewChatAdv = s.isNew;
+                        const backendIdAdv = data.threadId || data.thread_id || data.session_id;
 
-                        // Collect promotion info — don't call promoteSession here
-                        if (isNewChatAdvanced && backendIdAdvanced && backendIdAdvanced !== s.id) {
-                            promotionInfo = { oldId: s.id, newId: backendIdAdvanced };
+                        if (isNewChatAdv && backendIdAdv && backendIdAdv !== s.id) {
+                            promotionInfo = { oldId: s.id, newId: backendIdAdv };
                         }
 
                         if (hasSentMessageRef.current) {
                             hasSentMessageRef.current = false;
-                            if (isNewChatAdvanced) {
+                            if (isNewChatAdv) {
                                 shouldRefreshThreads = true;
                             } else {
                                 shouldMoveToTop = true;
@@ -293,9 +319,8 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                             }
                         }
 
-                        // If promoting, update id and isNew directly
                         if (promotionInfo) {
-                            return { ...s, id: backendIdAdvanced, sessionId: backendIdAdvanced, isNew: true, isThinking: false, messages };
+                            return { ...s, id: backendIdAdv, sessionId: backendIdAdv, isNew: true, isThinking: false, messages };
                         }
                         return { ...s, isThinking: false, messages };
                     }
@@ -304,9 +329,10 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                         return { ...s, metrics: data.data };
 
                     case 'error':
+                        console.error('[useWebSocket] Backend reported error:', data.message);
                         messages.push({
                             role: 'assistant',
-                            content: `Error: ${data.message}`,
+                            content: `Error: ${data.message || 'The server encountered an issue processing your request.'}`,
                             isNew: true,
                             timestamp: Date.now()
                         });
@@ -315,18 +341,15 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                     default:
                         return s;
                 }
-
             }));
 
-            // Call promoteSession OUTSIDE the updater — only needs to update activeSessionId
+            // EXECUTE SIDE EFFECTS OUTSIDE STATE SETTER
             if (promotionInfo) {
-
                 promoteSession?.(promotionInfo.oldId, promotionInfo.newId);
             }
 
-            // Sidebar updates
             if (shouldRefreshThreads && onThreadsChanged) {
-                // New chat: refresh sidebar (load 2 pages, same as initial load)
+                // Refresh sidebar with a slight delay to allow backend persistence to settle
                 setTimeout(async () => {
                     await onThreadsChanged();       // page 1
                     await onThreadsChanged(true);   // page 2
@@ -335,60 +358,72 @@ export const useWebSocket = (activeSessions, setActiveSessions, activeSessionId,
                 moveThreadToTop?.(moveToTopId);
             }
 
-        } catch {
-            // Message handling failed
+        } catch (err) {
+            console.error('[useWebSocket] Message processing failed:', err);
         }
     }, [setActiveSessions, onThreadsChanged, promoteSession, moveThreadToTop]);
 
-    // Subscribe to WebSocket service
+    /**
+     * Effect: Subscribe to the singleton WebSocket service.
+     */
     useEffect(() => {
         const unsubscribe = webSocketService.subscribe(handleMessage);
         return () => unsubscribe();
     }, [handleMessage, webSocketService]);
 
-    // Manage thread connections based on active sessions
+    /**
+     * Effect: Proactively manage WebSocket session connections.
+     * Ensures we only maintain active listeners for tabs currently open in the UI.
+     */
     useEffect(() => {
-        const currentThreadIds = activeThreadIds.split(',').filter(Boolean);
-        const currentSet = new Set(currentThreadIds);
+        const currentSessionIds = activeSessionIds.split(',').filter(Boolean);
+        const currentSet = new Set(currentSessionIds);
 
-        // Connect new threads
-        currentThreadIds.forEach(threadId => {
-            if (!connectedThreadsRef.current.has(threadId)) {
-                webSocketService.connectThread(threadId);
-                connectedThreadsRef.current.add(threadId);
+        // Connect new sessions
+        currentSessionIds.forEach(sessionId => {
+            if (!connectedSessionsRef.current.has(sessionId)) {
+                webSocketService.connectSession(sessionId);
+                connectedSessionsRef.current.add(sessionId);
             }
         });
 
-        // Disconnect removed threads
-        connectedThreadsRef.current.forEach(threadId => {
-            if (!currentSet.has(threadId)) {
-                webSocketService.disconnectThread(threadId);
-                connectedThreadsRef.current.delete(threadId);
+        // Disconnect removed sessions
+        connectedSessionsRef.current.forEach(sessionId => {
+            if (!currentSet.has(sessionId)) {
+                webSocketService.disconnectSession(sessionId);
+                connectedSessionsRef.current.delete(sessionId);
             }
         });
-    }, [activeThreadIds, webSocketService]);
+    }, [activeSessionIds, webSocketService]);
 
-    // Cleanup on unmount
+    /**
+     * Effect: Cleanup lifecycle.
+     * Forcefully disconnects all listeners when the hook is unmounted.
+     */
     useEffect(() => {
-        // Capture ref value for cleanup
-        const connectedThreads = connectedThreadsRef.current;
-
+        const connectedSessions = connectedSessionsRef.current;
         return () => {
-            connectedThreads.forEach(threadId => {
-                webSocketService.disconnectThread(threadId);
+            connectedSessions.forEach(sessionId => {
+                webSocketService.disconnectSession(sessionId);
             });
-            connectedThreads.clear();
+            connectedSessions.clear();
         };
     }, [webSocketService]);
 
-
-    const sendMessage = useCallback((threadId, text) => {
+    /**
+     * Transmits a message through the WebSocket service.
+     * 
+     * @param {string} sessionId - Target session
+     * @param {Object} payload - Message content and metadata
+     * @returns {boolean} Success status of the transmit operation
+     */
+    const sendMessage = useCallback((sessionId, payload) => {
         try {
-            if (!threadId) return false;
-            hasSentMessageRef.current = true; // Mark that user initiated a message
-            return webSocketService.sendMessage(threadId, text);
-        } catch {
-
+            if (!sessionId) return false;
+            hasSentMessageRef.current = true;
+            return webSocketService.sendMessage(sessionId, payload);
+        } catch (err) {
+            console.error('[useWebSocket] Send failed:', err);
             return false;
         }
     }, [webSocketService]);

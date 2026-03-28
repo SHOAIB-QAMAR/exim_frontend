@@ -6,64 +6,77 @@ import InputArea from './InputArea';
 import API_CONFIG from '../../../services/api.config';
 import ImageOverlay from '../../../components/common/ImageOverlay';
 
-/* MessageRow Component
- * Represents a single message in the chat timeline (either from the user or the assistant).
- * Wrapped in React.memo to prevent unnecessary re-renders when other messages update, significantly improving performance for long chat histories.
- * @param {Object} props || @param {Object} props.msg - The message object containing role, content, image, and status flags || @param {number} props.idx - The index of this message in the messages array || @param {Array} props.messages - The full array of messages in the current session || @param {Object} props.activeSession - The current chat session object (contains metrics, thinking states) || @param {Function} props.onTypingComplete - Callback fired when a streaming text effect finishes || @param {Function} props.onRetry - Callback to retry sending a failed message || @param {Function} props.onLinkClick - Callback fired when a link inside a message is clicked || @param {Function} props.scrollToBottom - Callback to force the container to scroll to the bottom during typing */
-
-const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComplete, onLinkClick, onImageClick, scrollToBottom }) => {
+/**
+ * MessageRow Component
+ * 
+ * Represents a single message bubble in the chat timeline.
+ * Memoized to prevent expensive re-renders during message streaming.
+ */
+const MessageRow = React.memo(({
+    msg,
+    idx,
+    messages,
+    activeSession,
+    onTypingComplete,
+    onLinkClick,
+    onImageClick,
+    scrollToBottom
+}) => {
 
     const isLastAssistantMsg = msg.role === 'assistant' && idx === messages.length - 1;
 
-    // Determine whether to show the AI thinking process dropdown. Only show it on the last assistant message if there are thinking steps available.
-    const showDropdownInAssistant = isLastAssistantMsg &&
-        (activeSession.thinkingSteps?.length > 0);
+    // Show the AI thinking process dropdown only on the last assistant message
+    const showDropdownInAssistant = isLastAssistantMsg && (activeSession.thinkingSteps?.length > 0);
 
-    // The AI is considered done thinking if 'isThinking' is false AND we have thinking data to show. This controls whether the dropdown shows a loading state or a completed summary.
-    const isProcessingComplete = !activeSession.isThinking &&
-        (activeSession.thinkingSteps?.length > 0);
+    // Completion status for the thinking dropdown
+    const isProcessingComplete = !activeSession.isThinking && (activeSession.thinkingSteps?.length > 0);
 
     return (
-        <div className="w-full max-w-5xl mx-auto px-2 md:px-6" role="listitem" aria-label={`${msg.role} message`}>
-            {/* ------------------------------------------- */}
-            {/* USER MESSAGE BLOCK                          */}
-            {/* ------------------------------------------- */}
+        <div
+            className="w-full max-w-5xl mx-auto px-4 md:px-6"
+            role="listitem"
+            aria-label={`${msg.role === 'user' ? 'Your' : 'AI'} message`}
+        >
+            {/* User Message Block */}
             {msg.role === 'user' && (
                 <div className="flex gap-2 md:gap-4 justify-end">
                     <div className="px-3 py-2.5 md:p-4 rounded-2xl leading-relaxed text-[13px] sm:text-sm md:text-base animate-fade-in-up max-w-[70%] md:max-w-[80%] bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/20 text-[var(--text-primary)] rounded-tr-sm">
-                        {/* Render attached image if it exists */}
                         {msg.image && (
                             <img
-                                // Handle blob URLs (previews), absolute URLs (S3), and relative URLs (legacy)
                                 src={
-                                msg.image.startsWith('blob:') || msg.image.startsWith('http') 
-                                      ? msg.image 
-                                      : `${API_CONFIG.API_BASE_URL}${msg.image}`
+                                    msg.image.startsWith('blob:') || msg.image.startsWith('http')
+                                        ? msg.image
+                                        : `${API_CONFIG.API_BASE_URL}${msg.image}`
                                 }
-                                alt="Attached"
+                                alt="Attached by user"
                                 onClick={(e) => onImageClick && onImageClick(e.target.src)}
                                 className="max-w-full max-h-36 rounded-lg mb-2 border border-[var(--border-color)] bg-black/5 cursor-pointer hover:opacity-90 transition-opacity"
                                 onError={(e) => { e.target.style.display = 'none'; }}
                             />
                         )}
-                        {/* Render the user's raw text message */}
                         {msg.content}
                     </div>
-                    {/* User Avatar Placeholder */}
-                    <div className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1">U</div>
+                    {/* User Avatar */}
+                    <div
+                        className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1"
+                        aria-hidden="true"
+                    >
+                        U
+                    </div>
                 </div>
             )}
 
-            {/* ------------------------------------------- */}
-            {/* ASSISTANT MESSAGE BLOCK                     */}
-            {/* ------------------------------------------- */}
+            {/* Assistant Message Block */}
             {msg.role === 'assistant' && (
                 <div className="flex gap-2 md:gap-4 justify-start">
-                    {/* Assistant Avatar Placeholder */}
-                    <div className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1">A</div>
+                    {/* AI Avatar */}
+                    <div
+                        className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1"
+                        aria-hidden="true"
+                    >
+                        A
+                    </div>
                     <div className="w-full md:max-w-[85%] animate-fade-in-up">
-
-                        {/* Render the thinking process dropdown if applicable */}
                         {showDropdownInAssistant && (
                             <AIProcessingDropdown
                                 steps={activeSession.thinkingSteps}
@@ -72,13 +85,11 @@ const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComp
                         )}
 
                         <div className="text-[13px] sm:text-sm md:text-base text-[var(--text-primary)] leading-relaxed">
-                            {/* Render text with typing effect if still streaming or new, else render normally parsed Markdown */}
                             {(msg.isStreaming || msg.isNew) ? (
                                 <TypingMessage
                                     content={msg.content}
                                     isStreaming={msg.isStreaming}
                                     onComplete={() => onTypingComplete(idx)}
-                                    // Make sure we scroll down as characters are appended
                                     onTyping={scrollToBottom}
                                     onLinkClick={onLinkClick}
                                 />
@@ -86,10 +97,11 @@ const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComp
                                 <MessageContent content={msg.content} onLinkClick={onLinkClick} />
                             )}
 
-                            {/* Show timeout warning if the message failed or timed out during generation */}
-                            {(msg.isTimeout || msg.content?.startsWith('Error:')) && (
-                                <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-[var(--border-color)]">
-                                    <span className="text-xs text-[var(--text-secondary)]">⚠️ Response timed out. The server may be busy or unavailable. Please try again.</span>
+                            {((msg.isTimeout || msg.content?.startsWith('Error:')) && !msg.content?.includes('timed out')) && (
+                                <div className="flex items-center gap-2 mt-3 pt-2.5 border-t border-[var(--border-color)]" role="alert">
+                                    <span className="text-xs text-[var(--text-secondary)]">
+                                        <span aria-hidden="true">⚠️</span> Response timed out. The server may be busy or unavailable. Please try again.
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -97,16 +109,16 @@ const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComp
                 </div>
             )}
 
-            {/* ------------------------------------------- */}
-            {/* LOADING STATE (Thinking Loader)             */}
-            {/* ------------------------------------------- */}
-            {/* Show a placeholder loading animation while the assistant is thinking and hasn't replied yet.
-                This is only shown after the very last user message. */}
+            {/* Inline Loading / Thinking State */}
             {msg.role === 'user' && idx === messages.length - 1 && activeSession.isThinking && (
                 <div className="flex gap-2 md:gap-4 justify-start mt-3">
-                    <div className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1">A</div>
-                    <div className="w-full md:max-w-[85%] animate-fade-in-up">
-                        {/* Show thinking steps if they exist, otherwise show a generic pulsing loader */}
+                    <div
+                        className="hidden md:flex w-10 h-10 rounded-full bg-[var(--bg-card)] border-2 border-[var(--text-secondary)] items-center justify-center text-[var(--text-primary)] font-bold text-sm shrink-0 mt-1"
+                        aria-hidden="true"
+                    >
+                        A
+                    </div>
+                    <div className="w-full md:max-w-[85%] animate-fade-in-up" aria-live="polite">
                         {activeSession.thinkingSteps?.length > 0 ? (
                             <AIProcessingDropdown
                                 steps={activeSession.thinkingSteps}
@@ -124,18 +136,16 @@ const MessageRow = React.memo(({ msg, idx, messages, activeSession, onTypingComp
 
 MessageRow.displayName = 'MessageRow';
 
-/* ChatMessages Component: Virtualized chat message list with smart scroll management.
- *
- * This component manages displaying the list of chat messages and handling complex scrolling behaviors like preserving scroll position when older messages load (pagination offset),
- * auto-scrolling to the bottom when new messages stream in (if the user is already at the bottom), and maintaining separate scroll states for different chat sessions.
+/**
+ * ChatMessages Component
  * 
- * Wrapped in React.forwardRef to allow parent components to attach a ref to the InputArea. */
-
+ * Manages the scrollable container for chat history, virtualized rendering,
+ * and complex scrolling behaviors (pagination anchoring, auto-scroll to bottom).
+ */
 const ChatMessages = ({
     messages,
     activeSession,
     onTypingComplete,
-    onRetry,
     onLinkClick,
     inputValue,
     setInputValue,
@@ -176,34 +186,11 @@ const ChatMessages = ({
 
     // Keep track of scroll states per session to properly save them when switching tabs
     const currentSessionIdRef = useRef(activeSession.id);
-
-
     const rafIdRef = useRef(null);
 
-    // Determines whether the user is scrolled to the bottom. We allow a 150px threshold so it doesn't have to be perfectly at 0px to be considered "pinned".
-    const handleScroll = useCallback(() => {
-        const container = scrollContainerRef.current;
-        if (!container) return;
-
-        // Calculate distance from bottom
-        const isPinned = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
-        isPinnedToBottomRef.current = isPinned;
-
-        // Remember the scroll state for the currently active session globally
-        // Scrolling triggers hundreds of events per second. If you tried to save the position to your database or global state on every single pixel of scroll, the app would lag.
-        // Instead of running the save logic immediately, it asks the browser: "Wait until the next time you are about to paint the screen (usually 16ms later)."
-        // The "Cancel" step: If another scroll event happens before that 16ms is up, it kills the previous request and starts a new one.
-        // The Result: The "Save" logic only runs once per frame, preventing "Main Thread" congestion.
-        const sid = currentSessionIdRef.current;
-        if (sid && saveScrollPosition) {
-            if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
-            rafIdRef.current = requestAnimationFrame(() => {
-                saveScrollPosition(sid, container.scrollTop, isPinned);
-            });
-        }
-    }, [saveScrollPosition]);
-
-    // Utility function that forcefully pushes the user's scrollbar to the absolute bottom of the chat. It is used constantly, specifically when: The AI says a new word. The user types a brand new message and hits Enter.    
+    /**
+     * Pushes the scroll position to the absolute bottom of the container.
+     */
     const snapToBottom = useCallback(() => {
         if (bottomAnchorRef.current) {
             bottomAnchorRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
@@ -214,16 +201,34 @@ const ChatMessages = ({
         }
     }, []);
 
+    /**
+     * Handles manual scroll events to track bottom pinning and save session scroll progress.
+     */
+    const handleScroll = useCallback(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
 
-    // UNIFIED SCROLL EFFECT: Session Switching, Pagination, and User Messages
-    // useLayoutEffect is critical here because we need to measure DOM changes and adjust scroll position synchronously *before* the browser paints the new frame, preventing jumping.
+        // Calculate distance from bottom
+        const isPinned = container.scrollHeight - container.scrollTop - container.clientHeight < 150;
+        isPinnedToBottomRef.current = isPinned;
+
+        const sid = currentSessionIdRef.current;
+        if (sid && saveScrollPosition) {
+            if (rafIdRef.current) cancelAnimationFrame(rafIdRef.current);
+            rafIdRef.current = requestAnimationFrame(() => {
+                saveScrollPosition(sid, container.scrollTop, isPinned);
+            });
+        }
+    }, [saveScrollPosition]);
+
+    // Handle scroll position restoration, pagination anchoring, and new message snapping
     useLayoutEffect(() => {
         const container = scrollContainerRef.current;
         if (!container) return;
 
         currentSessionIdRef.current = activeSession.id;
 
-        // 1. Session Switch: Restore scroll position or snap to bottom
+        // Session Switch Logic
         if (prevSessionIdRef.current !== activeSession.id) {
             if (activeSession.isPinnedToBottom === false) {
                 // Restore exact scroll position if they weren't at the bottom in the previous session. Ensure the saved scroll doesn't exceed the newly rendered height
@@ -234,16 +239,9 @@ const ChatMessages = ({
                 container.scrollTop = container.scrollHeight;
                 isPinnedToBottomRef.current = true;
 
-                // Wait 50 milliseconds (enough time for basic Markdown/Syntax Highlighting to finish rendering)
-                setTimeout(() => {
-                    if (isPinnedToBottomRef.current) snapToBottom();
-                }, 50);
-
-                // Wait 150 milliseconds (enough time for early network images to finish loading and stretching the screen)
-                setTimeout(() => {
-                    if (isPinnedToBottomRef.current) snapToBottom();
-                }, 150);
-
+                // Allow time for basic layout/rendering before final snap
+                setTimeout(() => { if (isPinnedToBottomRef.current) snapToBottom(); }, 50);
+                setTimeout(() => { if (isPinnedToBottomRef.current) snapToBottom(); }, 150);
             }
 
             // Update tracked state for next render comparison
@@ -265,16 +263,14 @@ const ChatMessages = ({
         if (isPagination) {
             container.scrollTop += container.scrollHeight - prevScrollHeightRef.current;
         }
-        // 3. New User Message: Auto-scroll unconditionally
+        // New User Message Snap
         else if (messages.length > 0 && messages[messages.length - 1].role === 'user') {
             snapToBottom();
         }
 
-        // Update tracked state for next render comparison
         prevScrollHeightRef.current = container.scrollHeight;
         prevMessagesRef.current = messages;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [messages, activeSession.id, snapToBottom]);
+    }, [messages, activeSession.id, snapToBottom, activeSession.isPinnedToBottom, activeSession.scrollPosition]);
 
 
     // DYNAMIC HEIGHT EFFECT: Typing & Loaders
@@ -290,7 +286,6 @@ const ChatMessages = ({
             for (const entry of entries) {
                 const newHeight = entry.contentRect.height;
                 if (newHeight !== lastHeight) {
-                    // Only auto-scroll if the user hasn't manually scrolled up and unpinned
                     if (isPinnedToBottomRef.current) snapToBottom();
                     lastHeight = newHeight;
                 }
@@ -329,20 +324,22 @@ const ChatMessages = ({
 
     return (
         <div className="flex flex-col min-h-full h-full relative">
-
             {/* Scrollable Main Area */}
             <div
                 ref={scrollContainerRef}
                 onScroll={handleScroll}
                 className="flex-1 overflow-y-auto relative"
+                role="log"
+                aria-label="Chat messages list"
+                aria-live="polite"
             >
                 {/* Intersection Observer Target (Top). Used for infinite scrolling backwards. */}
                 {hasMoreMessages && (
                     <div ref={observerTargetRef} className="w-full py-4 flex justify-center items-center">
                         {isLoadingMore ? (
-                            <div className="flex items-center gap-2 text-[var(--text-secondary)] text-sm">
+                            <div className="flex items-center gap-2 text-[var(--text-secondary)] text-sm" role="status">
                                 <span className="animate-spin inline-block w-4 h-4 border-2 border-[var(--text-secondary)] border-t-transparent rounded-full" />
-                                <span className="text-[var(--text-secondary)]">Loading older messages...</span>
+                                <span>Loading older messages...</span>
                             </div>
                         ) : (
                             <div className="h-4 w-full" /> // Invisible trigger area
@@ -351,7 +348,7 @@ const ChatMessages = ({
                 )}
 
                 {/* Inner container to monitor height changes */}
-                <div ref={innerContainerRef} className="pb-32 pt-4">
+                <div ref={innerContainerRef} className="pb-16 pt-4">
                     {messages.length === 0 && activeSession.isThinking ? (
                         /* Show loader when opening an existing chat before messages arrive */
                         <div className="flex flex-col items-center justify-center h-64">
@@ -378,8 +375,8 @@ const ChatMessages = ({
                 </div>
             </div>
 
-            {/* Fixed Bottom Input Area floating above the chat space */}
-            <div className="sticky bottom-0 w-full bg-gradient-to-t from-[var(--bg-secondary)] via-[var(--bg-secondary)] to-transparent pt-10 pb-6 px-4 z-10">
+            {/* Input Area */}
+            <div className="sticky bottom-0 w-full bg-gradient-to-t from-[var(--bg-secondary)] via-[var(--bg-secondary)] to-transparent pt-4 pb-6 px-4 z-10">
                 <div className="max-w-5xl mx-auto">
                     <InputArea
                         focusInput={focusInput}
@@ -399,8 +396,12 @@ const ChatMessages = ({
                     />
                 </div>
             </div>
-            
-            <ImageOverlay isOpen={!!previewImage} imageUrl={previewImage} onClose={() => setPreviewImage(null)} />
+
+            <ImageOverlay
+                isOpen={!!previewImage}
+                imageUrl={previewImage}
+                onClose={() => setPreviewImage(null)}
+            />
         </div>
     );
 };

@@ -76,43 +76,43 @@ describe('SharedWebSocketService', () => {
         localStorage.clear();
     });
 
-    // ── connectThread ─────────────────────────────────────────────────────
-    describe('connectThread', () => {
-        it('adds the thread to activeThreads', () => {
-            service.connectThread('t1');
-            expect(service.activeThreads.has('t1')).toBe(true);
+    // ── connectSession ────────────────────────────────────────────────────
+    describe('connectSession', () => {
+        it('adds the session to activeSessions', () => {
+            service.connectSession('s1');
+            expect(service.activeSessions.has('s1')).toBe(true);
         });
 
         it('schedules a WebSocket connection', () => {
-            service.connectThread('t1');
+            service.connectSession('s1');
             expect(service.connectTimer).not.toBeNull();
         });
 
-        it('does not create duplicate entries for the same thread', () => {
-            service.connectThread('t1');
-            service.connectThread('t1');
-            expect(service.activeThreads.size).toBe(1);
+        it('does not create duplicate entries for the same session', () => {
+            service.connectSession('s1');
+            service.connectSession('s1');
+            expect(service.activeSessions.size).toBe(1);
         });
     });
 
-    // ── disconnectThread ──────────────────────────────────────────────────
-    describe('disconnectThread', () => {
-        it('removes the thread from activeThreads', () => {
-            service.connectThread('t1');
-            service.disconnectThread('t1');
-            expect(service.activeThreads.has('t1')).toBe(false);
+    // ── disconnectSession ─────────────────────────────────────────────────
+    describe('disconnectSession', () => {
+        it('removes the session from activeSessions', () => {
+            service.connectSession('s1');
+            service.disconnectSession('s1');
+            expect(service.activeSessions.has('s1')).toBe(false);
         });
 
-        it('schedules disconnect when no threads remain', () => {
-            service.connectThread('t1');
-            service.disconnectThread('t1');
+        it('schedules disconnect when no sessions remain', () => {
+            service.connectSession('s1');
+            service.disconnectSession('s1');
             expect(service.disconnectTimer).not.toBeNull();
         });
 
-        it('does not schedule disconnect when other threads remain', () => {
-            service.connectThread('t1');
-            service.connectThread('t2');
-            service.disconnectThread('t1');
+        it('does not schedule disconnect when other sessions remain', () => {
+            service.connectSession('s1');
+            service.connectSession('s2');
+            service.disconnectSession('s1');
             expect(service.disconnectTimer).toBeNull();
         });
     });
@@ -142,21 +142,21 @@ describe('SharedWebSocketService', () => {
 
     // ── _notifySubscribers ────────────────────────────────────────────────
     describe('_notifySubscribers', () => {
-        it('calls all registered subscribers with threadId and message', () => {
+        it('calls all registered subscribers with sessionId and message', () => {
             const cb1 = vi.fn();
             const cb2 = vi.fn();
             service.subscribe(cb1);
             service.subscribe(cb2);
 
-            service._notifySubscribers('t1', { type: 'test' });
+            service._notifySubscribers('s1', { type: 'test' });
 
-            expect(cb1).toHaveBeenCalledWith('t1', { type: 'test' });
-            expect(cb2).toHaveBeenCalledWith('t1', { type: 'test' });
+            expect(cb1).toHaveBeenCalledWith('s1', { type: 'test' });
+            expect(cb2).toHaveBeenCalledWith('s1', { type: 'test' });
         });
 
         it('does not throw if a subscriber throws', () => {
             service.subscribe(() => { throw new Error('boom'); });
-            expect(() => service._notifySubscribers('t1', {})).not.toThrow();
+            expect(() => service._notifySubscribers('s1', {})).not.toThrow();
         });
     });
 
@@ -175,7 +175,7 @@ describe('SharedWebSocketService', () => {
     describe('sendMessage', () => {
         it('queues message and returns true when socket is null (triggers reconnect)', () => {
             service.socket = null;
-            const result = service.sendMessage('t1', { content: 'hello' });
+            const result = service.sendMessage('s1', { content: 'hello' });
             // _sendViaWebSocket queues and calls _scheduleConnect when socket is null
             expect(result).toBe(true);
             expect(service.messageQueue.length).toBeGreaterThan(0);
@@ -184,11 +184,11 @@ describe('SharedWebSocketService', () => {
         it('emits gpt_query via socket.emit when connected', () => {
             mockSocket.connected = true;
             service.socket = mockSocket;
-            const payload = { question: 'hello', thread_id: 't1' };
-            const result = service.sendMessage('t1', payload);
+            const payload = { question: 'hello', session_id: 's1' };
+            const result = service.sendMessage('s1', payload);
 
             expect(result).toBe(true);
-            expect(mockEmit).toHaveBeenCalledWith('gpt_query', payload);
+            expect(mockEmit).toHaveBeenCalledWith('gpt_query', expect.objectContaining({ session_id: 's1' }));
         });
 
         it('queues message when socket is not connected', () => {
@@ -196,7 +196,7 @@ describe('SharedWebSocketService', () => {
             service.socket = mockSocket;
             service.reconnectAttempts = 1;
             const payload = { question: 'hello' };
-            const result = service.sendMessage('t1', payload);
+            const result = service.sendMessage('s1', payload);
 
             expect(result).toBe(true);
             expect(service.messageQueue.length).toBeGreaterThan(0);
@@ -237,7 +237,7 @@ describe('SharedWebSocketService', () => {
     // ── forceClose ────────────────────────────────────────────────────────
     describe('forceClose', () => {
         it('clears all timers and resets state', () => {
-            service.connectThread('t1');
+            service.connectSession('s1');
             service.reconnectAttempts = 3;
             service.connectTimer = setTimeout(() => { }, 1000);
             service.disconnectTimer = setTimeout(() => { }, 1000);
@@ -246,7 +246,7 @@ describe('SharedWebSocketService', () => {
             service.forceClose();
 
             expect(service.isExplicitlyDisconnected).toBe(true);
-            expect(service.activeThreads.size).toBe(0);
+            expect(service.activeSessions.size).toBe(0);
             expect(service.reconnectAttempts).toBe(0);
             expect(service.connectTimer).toBeNull();
             expect(service.disconnectTimer).toBeNull();
@@ -292,10 +292,10 @@ describe('SharedWebSocketService', () => {
             service.subscribe(cb);
 
             service._handleMessage({
-                data: { threadId: 't1', type: 'message_chunk', content: 'hi' }
+                data: { sessionId: 's1', type: 'message_chunk', content: 'hi' }
             });
 
-            expect(cb).toHaveBeenCalledWith('t1', expect.objectContaining({ type: 'message_chunk' }));
+            expect(cb).toHaveBeenCalledWith('s1', expect.objectContaining({ type: 'message_chunk' }));
         });
 
         it('parses string JSON data and notifies subscribers', () => {
@@ -303,10 +303,10 @@ describe('SharedWebSocketService', () => {
             service.subscribe(cb);
 
             service._handleMessage({
-                data: JSON.stringify({ threadId: 't1', type: 'done' })
+                data: JSON.stringify({ sessionId: 's1', type: 'done' })
             });
 
-            expect(cb).toHaveBeenCalledWith('t1', expect.objectContaining({ type: 'done' }));
+            expect(cb).toHaveBeenCalledWith('s1', expect.objectContaining({ type: 'done' }));
         });
 
         it('parses backend-specific format (session_id and response)', () => {
@@ -314,10 +314,10 @@ describe('SharedWebSocketService', () => {
             service.subscribe(cb);
 
             service._handleMessage({
-                data: { session_id: 't1', response: 'hello chunk' }
+                data: { session_id: 's1', response: 'hello chunk' }
             });
 
-            expect(cb).toHaveBeenCalledWith('t1', expect.objectContaining({ response: 'hello chunk' }));
+            expect(cb).toHaveBeenCalledWith('s1', expect.objectContaining({ response: 'hello chunk' }));
         });
 
         it('does not throw on null data', () => {
@@ -329,7 +329,7 @@ describe('SharedWebSocketService', () => {
     describe('retryConnection', () => {
         it('resets reconnect attempts and schedules connect', () => {
             service.reconnectAttempts = 4;
-            service.activeThreads.add('t1');
+            service.activeSessions.add('s1');
 
             service.retryConnection();
 
@@ -339,15 +339,15 @@ describe('SharedWebSocketService', () => {
 
     // ── _createSocket ─────────────────────────────────────────────────────
     describe('_createSocket', () => {
-        it('does not connect when no active threads', () => {
+        it('does not connect when no active sessions', () => {
             service._createSocket();
             expect(service.socket).toBeNull();
         });
 
-        it('creates a Socket.IO connection when threads exist', () => {
+        it('creates a Socket.IO connection when sessions exist', () => {
             const ioMock = vi.mocked(ioImport);
             ioMock.mockClear();
-            service.activeThreads.add('t1');
+            service.activeSessions.add('s1');
             service._createSocket();
 
             expect(ioMock).toHaveBeenCalledWith(
@@ -363,7 +363,7 @@ describe('SharedWebSocketService', () => {
         it('does not pass auth or query token', () => {
             const ioMock = vi.mocked(ioImport);
             ioMock.mockClear();
-            service.activeThreads.add('t1');
+            service.activeSessions.add('s1');
             service._createSocket();
 
             const callArgs = ioMock.mock.calls[0][1];

@@ -26,8 +26,13 @@ import { useChatActions } from '../../features/chat/hooks/useChatActions';
 import LANGUAGES from '../../config/languages';
 import useKeyboardHeight from '../../hooks/useKeyboardHeight';
 
+/**
+ * The main layout coordinator for the EximGPT application.
+ * Manages UI state (sidebars, panels), data fetching (threads, sessions), 
+ * and orchestration between Header, Sidebar, Chat Area, and Context Panels.
+ */
 const Layout = () => {
-    // ==================== UI CONTEXT ====================
+    // ==================== INTERFACE STATE (UI CONTEXT) ====================
     const {
         sidebarCollapsed, toggleSidebar,
         mobileSidebarOpen, toggleMobileSidebar, closeMobileSidebar,
@@ -60,7 +65,7 @@ const Layout = () => {
         loadMoreMessages,
         saveScrollPosition,
         promoteSession
-    } = useChatSessions(threads, closeMobileSidebar);
+    } = useChatSessions(closeMobileSidebar);
 
     // ==================== PANEL HANDLERS ====================
     const openContextPanel = (data) => {
@@ -85,7 +90,6 @@ const Layout = () => {
     // ==================== CHAT ACTIONS ====================
     const {
         handleSend,
-        handleRetry,
         handleTypingComplete,
         handleFeatureClick,
         handleSearchResultClick,
@@ -113,7 +117,7 @@ const Layout = () => {
     // ==================== TAB WRAPPERS ====================
     const onTabClick = (id) => { handleTabClick(id); };
     const onNewChatWithScroll = () => { handleNewChat(); };
-    const onLoadChatWithScroll = (id) => { handleLoadChat(id); };
+    const onLoadChatWithScroll = (thread) => { handleLoadChat(thread); };
 
     const handleFAQClick = () => { openFAQ(); };
 
@@ -149,7 +153,7 @@ const Layout = () => {
                 onLoadChat={onLoadChatWithScroll}
                 onDeleteChat={handleDeleteChat}
                 threads={threads}
-                currThreadId={activeSessionId}
+                activeSessionId={activeSessionId}
                 onFAQClick={handleFAQClick}
                 showFAQ={showFAQ}
                 isLoading={isThreadsLoading}
@@ -209,7 +213,6 @@ const Layout = () => {
                                 messages={isVoiceMode ? liveVoiceMessages : activeSession.messages}
                                 activeSession={activeSession}
                                 onTypingComplete={handleTypingComplete}
-                                onRetry={handleRetry}
                                 onLinkClick={handleLinkClick}
                                 inputValue={activeSession.inputValue}
                                 setInputValue={(val) => updateActiveSession({ inputValue: val })}
