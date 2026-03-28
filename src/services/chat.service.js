@@ -235,12 +235,16 @@ class ChatService {
             user_lang: mappedLangCode
         };
 
-        const response = await fetch(`https://newimgchatbotnew1.zipaworld.com/getToken`, {
+        const response = await fetch(`https://eximmcpbackend.devapi.zipaworld.com/api/voice/token`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(payload)
+            body: JSON.stringify({
+                customer_id: custBranchData.customerId || custData._id || "",
+                chat_id: sessionId || "",
+                language: mappedLangCode
+            })
         });
 
         if (!response.ok) {
@@ -249,7 +253,13 @@ class ChatService {
 
         const data = await response.json();
         console.log('[LiveKit Token API] Full Response:', data);
-        return data.token;
+        // Return the full object — InputArea needs token, url, AND room
+        // to connect: room.connect(data.url, data.token)
+        return {
+            token: data.token,
+            url:   data.url,
+            room:  data.room,
+        };
     }
 }
 
