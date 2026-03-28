@@ -4,7 +4,7 @@ import Tooltip from '../../../components/common/Tooltip';
 import ImageOverlay from '../../../components/common/ImageOverlay';
 import { useUI } from '../../../providers/UIContext';
 import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark } from "react-icons/fa6";
-import { validateImage, compressImage, uploadImageToSupabase } from '../../../services/uploadService';
+import { processAndUploadFile } from '../../../services/uploadService';
 import chatService from '../../../services/chat.service';
 import { getLanguageCode } from '../../../config/languages';
 
@@ -212,6 +212,7 @@ const InputArea = ({
 
     // --- LiveKit Component State ---
     const [activeToken, setActiveToken] = useState(null);
+    const [activeServerUrl, setActiveServerUrl] = useState(null);
     const isFetchingRef = useRef(false);
     const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -245,13 +246,39 @@ const InputArea = ({
     // Image preview cleanup
     const previewUrl = useMemo(() => {
         if (!selectedFile) return null;
-        if (typeof selectedFile === 'string') return selectedFile;
-        try { return URL.createObjectURL(selectedFile); } catch { return null; }
+    
+        // UploadResult object (happy path — returned by processAndUploadFile)
+        if (typeof selectedFile === 'object' && selectedFile.url) {
+            // PDFs: no image preview — caller renders a chip instead
+            if (selectedFile.file_type === 'pdf') return null;
+            // Images: prefer local blob URL for instant display
+            return selectedFile.previewBlobUrl || selectedFile.url;
+        }
+    
+        // Raw File object (rare fallback — upload not yet complete)
+        if (selectedFile instanceof File) {
+            if (selectedFile.type.startsWith('image/')) {
+                try { return URL.createObjectURL(selectedFile); } catch { return null; }
+            }
+            return null; // PDF File object — no preview
+        }
+    
+        return null;
     }, [selectedFile]);
 
     useEffect(() => {
         return () => { if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); };
     }, [previewUrl]);
+
+    // Also revoke previewBlobUrl stored inside the UploadResult when selectedFile is cleared:
+    useEffect(() => {
+        // When selectedFile transitions from an UploadResult → null, clean up the blob URL
+        return () => {
+            if (selectedFile && typeof selectedFile === 'object' && selectedFile.previewBlobUrl) {
+                URL.revokeObjectURL(selectedFile.previewBlobUrl);
+            }
+        };
+    }, [selectedFile]);
 
 
     // --- Voice Transition Logic ---
@@ -261,8 +288,9 @@ const InputArea = ({
             isFetchingRef.current = true;
             showNotification('Connecting to LiveKit...', null);
             const langName = selectedLang?.name || 'English (IN)';
-            const t = await chatService.getLiveKitToken(activeSessionId || "", langName);
-            setActiveToken(t);
+            const { token, url } = await chatService.getLiveKitToken(activeSessionId || "", langName);
+            setActiveToken(token);
+            setActiveServerUrl(url);
         } catch (e) {
             console.error('Connection failed:', e);
             showNotification('Voice connection failed', 3000);
@@ -273,7 +301,9 @@ const InputArea = ({
     }, [selectedLang, activeSessionId, setIsVoiceMode, showNotification]);
 
     const handleVoiceCancel = useCallback((closeMode = true) => {
-        setActiveToken(null); // Instantly unmounts LiveKitRoom
+        setActiveToken(null);
+        setActiveServerUrl(null);
+        // Instantly unmounts LiveKitRoom
         if (closeMode) {
             if (setIsVoiceMode) setIsVoiceMode(false);
             showNotification('Voice mode closed', 2000);
@@ -325,46 +355,48 @@ const InputArea = ({
     // --- Media Pickers ---
     const handleFileChange = async (e) => {
         const file = e.target.files?.[0];
-        if (file) {
-            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            if (!validTypes.includes(file.type)) { alert('Please select a valid image file'); return; }
-            if (file.size > 10 * 1024 * 1024) { alert('Image size must be less than 10MB'); return; }
-
-            try {
-                showNotification('Image uploading...', null);
-                validateImage(file);
-                const compressedImage = await compressImage(file);
-                const publicUrl = await uploadImageToSupabase(compressedImage);
-                setSelectedFile(publicUrl);
-                showNotification('Image loaded successfully', 3000);
-            } catch {
-                showNotification('Image upload failed', 3000);
-            }
+        if (!file) { e.target.value = ''; return; }
+    
+        const isPdf = file.type === 'application/pdf' ||
+                    (file.type === 'application/octet-stream' && file.name.toLowerCase().endsWith('.pdf'));
+        const label = isPdf ? 'document' : 'image';
+    
+        try {
+            showNotification(`Uploading ${label}...`, null);
+            const uploadResult = await processAndUploadFile(file);
+            setSelectedFile(uploadResult);   // store the full UploadResult, not just the URL
+            showNotification(`${isPdf ? 'Document' : 'Image'} ready`, 3000);
+        } catch (err) {
+            console.error('[InputArea] handleFileChange upload failed:', err);
+            showNotification(err.message || `${label} upload failed`, 3000);
+        } finally {
+            e.target.value = ''; // reset input so the same file can be re-selected
         }
-        e.target.value = '';
     };
+
 
     const handleCapture = useCallback(() => {
         const imageSrc = webcamRef.current?.getScreenshot();
-        if (imageSrc) {
-            fetch(imageSrc)
-                .then(res => res.blob())
-                .then(async blob => {
-                    const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-                    setShowCamera(false);
-                    try {
-                        showNotification('Image uploading...', null);
-                        validateImage(file);
-                        const compressedImage = await compressImage(file);
-                        const publicUrl = await uploadImageToSupabase(compressedImage);
-                        setSelectedFile(publicUrl);
-                        showNotification('Image loaded successfully', 3000);
-                    } catch {
-                        showNotification('Image upload failed', 3000);
-                    }
-                });
-        }
+        if (!imageSrc) return;
+    
+        fetch(imageSrc)
+            .then(res => res.blob())
+            .then(async blob => {
+                const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                setShowCamera(false);
+                try {
+                    showNotification('Uploading photo...', null);
+                    const uploadResult = await processAndUploadFile(file);
+                    setSelectedFile(uploadResult);
+                    showNotification('Photo ready', 3000);
+                } catch (err) {
+                    console.error('[InputArea] handleCapture upload failed:', err);
+                    showNotification(err.message || 'Photo upload failed', 3000);
+                }
+            })
+            .catch(() => showNotification('Could not process photo', 3000));
     }, [setSelectedFile, showNotification]);
+
 
     const handleRemoveFile = () => setSelectedFile(null);
     const isStandalone = !mode;
@@ -445,7 +477,8 @@ const InputArea = ({
                         <div className="flex flex-col items-center justify-center w-full min-h-[140px]">
                             {activeToken ? (
                                 <LiveKitRoom
-                                    serverUrl="wss://demo-xv7lww7p.livekit.cloud"
+                                    // serverUrl="wss://demo-xv7lww7p.livekit.cloud"
+                                    serverUrl={activeServerUrl}
                                     token={activeToken}
                                     connect={true}
                                     audio={false} // Managed locally to avoid permission loop
@@ -504,6 +537,31 @@ const InputArea = ({
                                     </div>
                                 )}
 
+                                {selectedFile && selectedFile.file_type === 'pdf' && (
+                                    <div className="px-3 pt-3 pb-1">
+                                        <div className="relative inline-flex items-center gap-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg px-3 py-2 max-w-[220px]">
+                                            <span className="text-lg">📄</span>
+                                            <div className="flex flex-col min-w-0">
+                                                <span className="text-xs font-medium text-[var(--text-primary)] truncate">
+                                                    {selectedFile.filename}
+                                                </span>
+                                                <span className="text-[10px] text-[var(--text-secondary)]">
+                                                    {selectedFile.page_count} page{selectedFile.page_count > 1 ? 's' : ''}
+                                                    {selectedFile.truncated ? ' (truncated)' : ''}
+                                                </span>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={handleRemoveFile}
+                                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors"
+                                                title="Remove document"
+                                            >
+                                                <FaXmark className="text-xs" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* ── INPUT ROW (+ button, textarea, action buttons) ── */}
                                 <div className="flex items-end gap-2 p-2 md:p-3">
                                     {/* "+" Menu Button */}
@@ -528,7 +586,7 @@ const InputArea = ({
                                                     }}
                                                 >
                                                     <FaImage className="text-[var(--brand-primary)] text-base" />
-                                                    Upload Image
+                                                    Upload Image or PDF
                                                 </button>
                                                 <div className="h-px bg-[var(--border-color)]" />
                                                 <button
@@ -551,7 +609,7 @@ const InputArea = ({
                                         type="file"
                                         ref={fileInputRef}
                                         hidden
-                                        accept="image/jpeg,image/png,image/gif,image/webp"
+                                        accept="image/jpeg,image/png,image/webp,.pdf,application/pdf"
                                         onChange={handleFileChange}
                                     />
 
