@@ -5,6 +5,11 @@ import LogisticsLoader from '../../../components/common/LogisticsLoader';
 import InputArea from './InputArea';
 import API_CONFIG from '../../../services/api.config';
 import ImageOverlay from '../../../components/common/ImageOverlay';
+import { FaFilePdf, FaPlus } from 'react-icons/fa6';
+import { pdfjs } from 'react-pdf';
+
+// Configure PDF.js worker for consistent rendering across previews and overlays
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 /**
  * MessageRow Component
@@ -40,7 +45,10 @@ const MessageRow = React.memo(({
             {/* User Message Block */}
             {msg.role === 'user' && (
                 <div className="flex gap-2 md:gap-4 justify-end">
-                    <div className="px-3 py-2.5 md:p-4 rounded-2xl leading-relaxed text-[13px] sm:text-sm md:text-base animate-fade-in-up max-w-[70%] md:max-w-[80%] bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/20 text-[var(--text-primary)] rounded-tr-sm">
+                    <div className={`
+                        ${(msg.pdf && !msg.content?.trim() && !msg.image) ? 'p-0 bg-transparent border-none' : 'px-3 py-2.5 md:p-4 bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/20'}
+                        rounded-2xl leading-relaxed text-[13px] sm:text-sm md:text-base animate-fade-in-up max-w-[70%] md:max-w-[80%] text-[var(--text-primary)] rounded-tr-sm
+                    `}>
                         {msg.image && (
                             <img
                                 src={
@@ -54,6 +62,32 @@ const MessageRow = React.memo(({
                                 onError={(e) => { e.target.style.display = 'none'; }}
                             />
                         )}
+
+                        {/* PDF Attachment Card (Matching Screenshot) */}
+                        {msg.pdf && (
+                            <div
+                                className="flex items-center gap-3 p-3 bg-black/10 border border-white/5 rounded-xl mb-3 cursor-pointer hover:bg-black/20 transition-all group/pdf"
+                                onClick={() => {
+                                    const fullUrl = msg.pdf.startsWith('blob:') || msg.pdf.startsWith('http')
+                                        ? msg.pdf
+                                        : `${API_CONFIG.API_BASE_URL}${msg.pdf}`;
+                                    onImageClick && onImageClick(fullUrl);
+                                }}
+                            >
+                                <div className="w-10 h-10 bg-[#f83c3c] rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover/pdf:scale-105">
+                                    <FaFilePdf className="text-white text-xl" />
+                                </div>
+                                <div className="flex flex-col min-w-0 overflow-hidden pr-2">
+                                    <span className="text-sm font-bold text-[var(--text-primary)] truncate">
+                                        {msg.pdf_name || 'Document.pdf'}
+                                    </span>
+                                    <span className="text-[11px] text-[var(--text-secondary)] font-medium tracking-wide uppercase">
+                                        PDF
+                                    </span>
+                                </div>
+                            </div>
+                        )}
+
                         {msg.content}
                     </div>
                     {/* User Avatar */}

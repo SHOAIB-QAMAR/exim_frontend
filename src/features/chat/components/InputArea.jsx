@@ -1,10 +1,11 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
+import { Document, Page } from 'react-pdf';
 import Webcam from 'react-webcam';
 import Tooltip from '../../../components/common/Tooltip';
 import ImageOverlay from '../../../components/common/ImageOverlay';
 import { useUI } from '../../../providers/UIContext';
-import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark } from "react-icons/fa6";
-import { validateImage, compressImage, uploadImageToSupabase } from '../../../services/uploadService';
+import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaFilePdf, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark } from "react-icons/fa6";
+import { validateImage, validatePdf, compressImage, uploadImageToSupabase } from '../../../services/uploadService';
 import chatService from '../../../services/chat.service';
 import { getLanguageCode } from '../../../config/languages';
 
@@ -238,6 +239,7 @@ const InputArea = ({
     const attachMenuId = React.useId();
     const textareaRef = useRef(null);
     const fileInputRef = useRef(null);
+    const pdfInputRef = useRef(null);
     const webcamRef = useRef(null);
     const menuRef = useRef(null);
 
@@ -286,6 +288,7 @@ const InputArea = ({
     const previewUrl = useMemo(() => {
         if (!selectedFile) return null;
         if (typeof selectedFile === 'string') return selectedFile;
+        if (typeof selectedFile === 'object' && selectedFile.url) return selectedFile.url;
         try { return URL.createObjectURL(selectedFile); } catch { return null; }
     }, [selectedFile]);
 
@@ -379,6 +382,22 @@ const InputArea = ({
                 showNotification('Image loaded successfully', 3000);
             } catch {
                 showNotification('Image upload failed', 3000);
+            }
+        }
+        e.target.value = '';
+    };
+
+    const handlePdfChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            try {
+                showNotification('PDF uploading...', null);
+                validatePdf(file);
+                const publicUrl = await uploadImageToSupabase(file);
+                setSelectedFile({ url: publicUrl, type: 'pdf', name: file.name });
+                showNotification('PDF loaded successfully', 3000);
+            } catch (err) {
+                showNotification(err.message || 'PDF upload failed', 3000);
             }
         }
         e.target.value = '';
@@ -520,30 +539,77 @@ const InputArea = ({
                     ) : (
                         /* ── TEXT INPUT BUBBLE ── */
                         <div className={`relative p-[1px] rounded-xl transition-all duration-500 shadow-sm hover:-translate-y-1 hover:scale-[1.01] active:scale-[0.99]
-                            bg-gradient-to-r from-[var(--brand-primary)]/40 via-[var(--brand-highlight)]/40 to-[var(--brand-primary)]/40 dark:from-white/70 dark:via-white/70 dark:to-white/70 hover:from-[var(--brand-primary)] hover:via-[var(--brand-highlight)] hover:to-[var(--brand-primary)] focus-within:from-[var(--brand-primary)] focus-within:via-[var(--brand-highlight)] focus-within:to-[var(--brand-primary)] focus-within:shadow-[0_0_20px_-5px_var(--brand-primary)]`}>
+            bg-gradient-to-r from-[var(--brand-primary)]/40 via-[var(--brand-highlight)]/40 to-[var(--brand-primary)]/40 dark:from-white/70 dark:via-white/70 dark:to-white/70 hover:from-[var(--brand-primary)] hover:via-[var(--brand-highlight)] hover:to-[var(--brand-primary)] focus-within:from-[var(--brand-primary)] focus-within:via-[var(--brand-highlight)] focus-within:to-[var(--brand-primary)] focus-within:shadow-[0_0_20px_-5px_var(--brand-primary)]`}>
 
                             <div className="input-wrapper relative flex flex-col rounded-xl bg-[var(--bg-card)] transition-all duration-200 overflow-visible">
                                 <div className="absolute top-0 right-0 w-48 h-48 bg-[radial-gradient(circle_at_top_right,var(--brand-primary),transparent_70%)] opacity-[0.25] blur-2xl rounded-tr-xl pointer-events-none"></div>
 
-                                {/* ── IMAGE PREVIEW INSIDE INPUT ── */}
                                 {selectedFile && previewUrl && (
                                     <div className="px-3 pt-3 pb-1">
-                                        <div className="relative inline-block">
-                                            <img
-                                                src={previewUrl}
-                                                alt="Selected"
-                                                onClick={() => setShowImageOverlay(true)}
-                                                className="h-24 max-w-[200px] object-cover rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={handleRemoveFile}
-                                                className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors"
-                                                title="Remove image"
-                                            >
-                                                <FaXmark className="text-xs" />
-                                            </button>
-                                        </div>
+                                        {typeof selectedFile === 'object' && selectedFile.type === 'pdf' ? (
+                                            <div className="relative inline-block group/preview">
+                                                <div
+                                                    className="relative h-24 min-w-[120px] max-w-[180px] bg-[var(--bg-tertiary)] rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity"
+                                                    onClick={() => setShowImageOverlay(true)}
+                                                >
+                                                    <Document
+                                                        file={previewUrl}
+                                                        loading={
+                                                            <div className="flex items-center justify-center p-4">
+                                                                <span className="animate-spin w-5 h-5 border-2 border-[var(--brand-primary)] border-t-transparent rounded-full" />
+                                                            </div>
+                                                        }
+                                                        error={
+                                                            <div className="flex flex-col items-center gap-1 p-2 text-center">
+                                                                <FaFilePdf className="text-red-500 text-lg" />
+                                                                <span className="text-[10px] text-red-500 font-bold uppercase">Render Failed</span>
+                                                            </div>
+                                                        }
+                                                    >
+                                                        <Page
+                                                            pageNumber={1}
+                                                            height={96}
+                                                            renderAnnotationLayer={false}
+                                                            renderTextLayer={false}
+                                                            className="pointer-events-none"
+                                                        />
+                                                    </Document>
+
+                                                    {/* Overlay for PDF name on hover */}
+                                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 opacity-0 group-hover/preview:opacity-100 transition-opacity pointer-events-none">
+                                                        <p className="text-[10px] text-white font-medium truncate">
+                                                            {selectedFile.name}
+                                                        </p>
+                                                    </div>
+                                                </div>
+
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRemoveFile}
+                                                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all scale-0 group-hover/preview:scale-100 z-10"
+                                                    title="Remove PDF"
+                                                >
+                                                    <FaXmark className="text-[8px]" />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <div className="relative inline-block group/preview">
+                                                <img
+                                                    src={previewUrl}
+                                                    alt="Selected"
+                                                    onClick={() => setShowImageOverlay(true)}
+                                                    className="h-24 max-w-[200px] object-cover rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={handleRemoveFile}
+                                                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all scale-0 group-hover/preview:scale-100 z-10"
+                                                    title="Remove image"
+                                                >
+                                                    <FaXmark className="text-[8px]" />
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
 
@@ -588,6 +654,19 @@ const InputArea = ({
                                                     role="menuitem"
                                                     className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                                     onClick={() => {
+                                                        pdfInputRef.current?.click();
+                                                        setShowAttachMenu(false);
+                                                    }}
+                                                >
+                                                    <FaFilePdf className="text-[var(--brand-primary)] text-base" aria-hidden="true" />
+                                                    Upload PDF
+                                                </button>
+                                                <div className="h-px bg-[var(--border-color)]" aria-hidden="true" />
+                                                <button
+                                                    type="button"
+                                                    role="menuitem"
+                                                    className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
+                                                    onClick={() => {
                                                         setShowCamera(true);
                                                         setShowAttachMenu(false);
                                                     }}
@@ -606,6 +685,13 @@ const InputArea = ({
                                         hidden
                                         accept="image/jpeg,image/png,image/gif,image/webp"
                                         onChange={handleFileChange}
+                                    />
+                                    <input
+                                        type="file"
+                                        ref={pdfInputRef}
+                                        hidden
+                                        accept=".pdf,application/pdf"
+                                        onChange={handlePdfChange}
                                     />
 
                                     {/* Textarea */}

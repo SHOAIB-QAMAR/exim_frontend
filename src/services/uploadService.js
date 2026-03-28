@@ -27,11 +27,31 @@ export const validateImage = (file) => {
     if (!file.type.startsWith('image/')) {
         throw new Error('Please select a valid image file (JPG, PNG, WebP).');
     }
-    
+
     // Check original file size (limit to 10MB before compression for performance)
     const MAX_ORIGINAL_SIZE_MB = 10;
     if (file.size > MAX_ORIGINAL_SIZE_MB * 1024 * 1024) {
         throw new Error(`The image is too large. Please select a file under ${MAX_ORIGINAL_SIZE_MB}MB.`);
+    }
+
+    return true;
+};
+
+/**
+ * Validates a file to ensure it's a PDF and under the size limit.
+ * 
+ * @param {File} file - The file object to validate
+ * @returns {boolean} True if valid
+ * @throws {Error} If validation fails
+ */
+export const validatePdf = (file) => {
+    if (file.type !== 'application/pdf') {
+        throw new Error('Please select a PDF file.');
+    }
+
+    const MAX_PDF_SIZE_MB = 10;
+    if (file.size > MAX_PDF_SIZE_MB * 1024 * 1024) {
+        throw new Error(`The PDF is too large. Please select a file under ${MAX_PDF_SIZE_MB}MB.`);
     }
 
     return true;
@@ -50,7 +70,7 @@ export const compressImage = async (file) => {
             maxWidthOrHeight: 1920, // Downscale large images
             useWebWorker: true,      // Offload processing from main thread
         };
-        
+
         return await imageCompression(file, options);
     } catch (error) {
         if (import.meta.env.DEV) console.error('[UploadService] Compression Error:', error);
@@ -102,7 +122,7 @@ export const uploadImageToSupabase = async (file) => {
             .getPublicUrl(uniquePath);
 
         return publicUrlData.publicUrl;
-        
+
     } catch (error) {
         if (import.meta.env.DEV) console.error('[UploadService] Upload Task Failed:', error);
         throw new Error(`Image upload failed: ${error.message}`);

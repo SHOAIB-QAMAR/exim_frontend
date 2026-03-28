@@ -65,12 +65,16 @@ export const useChatActions = ({
             let uploadedImageUrl = null;
             let blobUrl = null;
 
-            // Handle image upload if present, or use existing from retry
+            // Handle image/PDF upload if present, or use existing from retry
             if (activeSession.selectedFile && !options.isRetry) {
                 if (typeof activeSession.selectedFile === 'string') {
-                    // Already uploaded by background process in InputArea
+                    // Already uploaded by background process in InputArea (Image)
                     uploadedImageUrl = activeSession.selectedFile;
                     userMsg.image = uploadedImageUrl;
+                } else if (activeSession.selectedFile.type === 'pdf') {
+                    // PDF already uploaded by InputArea
+                    userMsg.pdf = activeSession.selectedFile.url;
+                    userMsg.pdf_name = activeSession.selectedFile.name;
                 } else {
                     // Fallback: wait for direct upload before sending
                     blobUrl = URL.createObjectURL(activeSession.selectedFile);
@@ -141,6 +145,9 @@ export const useChatActions = ({
 
             if (uploadedImageUrl) {
                 payload.image = uploadedImageUrl;
+            } else if (userMsg.pdf) {
+                payload.pdf = userMsg.pdf;
+                payload.pdf_name = userMsg.pdf_name;
             }
 
             // Trigger WebSocket transmission
