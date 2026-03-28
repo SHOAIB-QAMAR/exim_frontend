@@ -53,20 +53,29 @@ class ChatService {
     async getThreadMessages(threadId, page = 1) {
         if (!threadId) throw new Error('threadId is required but was not provided');
 
+        const startTime = performance.now();
+
         const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/chat/detail`, {
             method:  'POST',
             headers: { 'Content-Type': 'application/json' },
             body:    JSON.stringify({ id: threadId, page }),
         });
 
+        const latency = performance.now() - startTime;
+        console.groupCollapsed(`📊 [Metrics] API: getThreadMessages - ${Math.round(latency)}ms`);
+        console.log(`Latency: ${latency.toFixed(2)} ms`);
+        console.groupEnd();
+
         if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to fetch thread messages`);
 
         const data = await response.json();
-        // Backend returns: { status, messages: [{role, content, timestamp, image?}], total, page, page_size }
-        const rawMessages = data.messages || [];
 
-        const hasMore = data.page && data.page_size && data.total
-            ? (data.page * data.page_size) < data.total
+        // ✅ Backend returns messages in `result`, not `messages`
+        const rawMessages = data.result || data.messages || data.all_chat || [];
+
+        // ✅ Backend uses totalPages + page, not total + page_size
+        const hasMore = data.totalPages
+            ? Number(data.page || 1) < Number(data.totalPages)
             : false;
 
         return {
@@ -74,10 +83,11 @@ class ChatService {
             hasMore,
             messages: rawMessages.map((msg, index) => ({
                 ...msg,
-                id:      msg._id || msg.id || `${threadId}-msg-${index}`,
+                id:      msg._id || msg.id || msg.questionAnswer || `${threadId}-msg-${index}`,
+                // ✅ Backend uses `text` as the content field — prioritise it
                 role:    msg.role === 'customer' ? 'user' : (msg.role || 'assistant'),
-                content: msg.content || msg.text || msg.message || '',
-                image:   msg.image || msg.image_url || null,
+                content: msg.text || msg.content || msg.message || '',
+                image:   msg.image_url || msg.image || null,
             })),
         };
     }
@@ -163,7 +173,7 @@ class ChatService {
             language:    languageCode,
         };
         
-        const response = await fetch(`https://eximmcpbackend.devapi.zipaworld.com/api/voice/token`, {
+        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/voice/token`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
