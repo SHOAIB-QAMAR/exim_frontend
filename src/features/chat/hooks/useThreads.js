@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ChatService from '../../../services/chat.service';
 
-const DATA_LIMIT = 20;
+const DATA_LIMIT = 10;
 
 /**
  * useThreads Hook

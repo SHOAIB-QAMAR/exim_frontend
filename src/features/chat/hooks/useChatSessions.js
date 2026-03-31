@@ -27,8 +27,10 @@ const createSession = (id = uuidv1(), title = "New Chat") => ({
     scrollPosition: 0,
     isPinnedToBottom: true,
     lastAccessedAt: Date.now(),
-    selectedFile: null,
-    contextPanel: { open: false, data: null }
+    selectedFiles: [],
+    contextPanel: { open: false, data: null },
+    isVoiceMode: false,     // Per-tab voice mode flag
+    liveVoiceMessages: []   // Per-tab voice transcriptions
 });
 
 /**
@@ -54,8 +56,10 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
                         ...s,
                         isThinking: false, // Don't persist thinking state across refresh
                         isLoadingMore: false,
-                        selectedFile: null, // Clear out any straggling File objects serialized as {}
-                        isUploading: false
+                        selectedFiles: [], // Clear out any straggling File objects serialized as {}
+                        isUploading: false,
+                        isVoiceMode: false,        // Voice connections are ephemeral
+                        liveVoiceMessages: []      // Clear transcriptions on reload
                     }));
                 }
             }
@@ -87,6 +91,13 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
     const updateActiveSession = useCallback((fields) => {
         setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, ...fields } : s));
     }, [activeSessionId]);
+
+    /**
+     * Updates specific fields on a specific session by ID.
+     */
+    const updateSession = useCallback((sessionId, fields) => {
+        setActiveSessions(prev => prev.map(s => s.id === sessionId ? { ...s, ...fields } : s));
+    }, []);
 
     /**
      * Creates a brand new chat session and switches to it.
@@ -173,14 +184,14 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
 
             // Fetch actual messages from backend
             try {
-                const response = await ChatService.getThreadMessages(objectId, 1);
+                const response = await ChatService.getThreadMessages(sessionId, 1);
                 setActiveSessions(prev => prev.map(s => s.id === sessionId ? {
                     ...s,
                     messages: response.messages || [],
                     hasMoreMessages: response.hasMore || false,
                     messagePage: 1,
                     title: thread?.title || "Chat",
-                    sessionId: thread?.sessionId || thread?.session_id || null,
+                    sessionId: sessionId,
                     objectId: objectId,
                     isThinking: false
                 } : s));
@@ -207,8 +218,8 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
 
         try {
             const nextPage = (activeSession.messagePage || 1) + 1;
-            const objectId = activeSession.objectId || activeSessionId;
-            const response = await ChatService.getThreadMessages(objectId, nextPage);
+            const detailId = activeSession.sessionId || activeSession.objectId || activeSessionId;
+            const response = await ChatService.getThreadMessages(detailId, nextPage);
 
             if (response && response.messages) {
                 setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? {
@@ -260,6 +271,7 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
         setActiveSessionId,
         activeSession,
         updateActiveSession,
+        updateSession,
         handleNewChat,
         handleTabClick,
         handleTabClose,

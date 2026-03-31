@@ -42,9 +42,15 @@ const Layout = () => {
         langOpen, setLangOpen
     } = useUI();
 
-    const [selectedLang, setSelectedLang] = useState(LANGUAGES[0]);
-    const [isVoiceMode, setIsVoiceMode] = useState(false);
-    const [liveVoiceMessages, setLiveVoiceMessages] = useState([]);
+    const [selectedLang, setSelectedLang] = useState(() => {
+        const savedLang = localStorage.getItem('selectedLanguage');
+        if (savedLang) {
+            const found = LANGUAGES.find(l => l.name === savedLang);
+            if (found) return found;
+        }
+        return LANGUAGES[0];
+    });
+
 
     // Writes --keyboard-height CSS variable whenever the virtual keyboard appears/disappears
     useKeyboardHeight();
@@ -58,6 +64,7 @@ const Layout = () => {
         activeSessionId,
         activeSession,
         updateActiveSession,
+        updateSession,
         handleNewChat,
         handleTabClick,
         handleTabClose,
@@ -112,9 +119,15 @@ const Layout = () => {
     });
 
     // ==================== EFFECTS ====================
+    // Persistence: Store language choice in localStorage
+    useEffect(() => {
+        localStorage.setItem('selectedLanguage', selectedLang.name);
+    }, [selectedLang]);
+
     // Scroll management is handled inside ChatMessages.
 
     // ==================== TAB WRAPPERS ====================
+    // When switching tabs, state is preserved. Mic auto-closes only when another tab activates mic.
     const onTabClick = (id) => { handleTabClick(id); };
     const onNewChatWithScroll = () => { handleNewChat(); };
     const onLoadChatWithScroll = (thread) => { handleLoadChat(thread); };
@@ -189,48 +202,89 @@ const Layout = () => {
                 {/* Chat Area */}
                 <div id="chat-area-container" className="chat-area flex-1 flex flex-col overflow-hidden bg-[var(--bg-secondary)] transition-colors duration-800 relative">
                     <div className={`flex-1 overflow-hidden w-full h-full relative ${(searchPanelOpen || showFAQ) ? 'blur-[16px] pointer-events-none' : ''}`}>
-                        {(activeSession.messages.length === 0 && activeSession.isNew && !isVoiceMode) ? (
-                            <WelcomeScreen
-                                focusInput={focusInput}
-                                setFocusInput={setFocusInput}
-                                onFeatureClick={handleFeatureClick}
-                                inputValue={activeSession.inputValue}
-                                setInputValue={(val) => updateActiveSession({ inputValue: val })}
-                                onSend={handleSend}
-                                selectedFile={activeSession.selectedFile}
-                                setSelectedFile={(file) => updateActiveSession({ selectedFile: file })}
-                                disabled={isAnyTabLoading}
-                                selectedLang={selectedLang}
-                                activeSessionId={activeSessionId}
-                                isVoiceMode={isVoiceMode}
-                                setIsVoiceMode={setIsVoiceMode}
-                                setLiveVoiceMessages={setLiveVoiceMessages}
-                            />
-                        ) : (
-                            <ChatMessages
-                                focusInput={focusInput}
-                                setFocusInput={setFocusInput}
-                                messages={isVoiceMode ? liveVoiceMessages : activeSession.messages}
-                                activeSession={activeSession}
-                                onTypingComplete={handleTypingComplete}
-                                onLinkClick={handleLinkClick}
-                                inputValue={activeSession.inputValue}
-                                setInputValue={(val) => updateActiveSession({ inputValue: val })}
-                                onSend={handleSend}
-                                selectedFile={activeSession.selectedFile}
-                                setSelectedFile={(file) => updateActiveSession({ selectedFile: file })}
-                                disabled={isAnyTabLoading}
-                                hasMoreMessages={isVoiceMode ? false : activeSession.hasMoreMessages}
-                                isLoadingMore={isVoiceMode ? false : activeSession.isLoadingMore}
-                                onLoadMore={loadMoreMessages}
-                                saveScrollPosition={saveScrollPosition}
-                                selectedLang={selectedLang}
-                                activeSessionId={activeSessionId}
-                                isVoiceMode={isVoiceMode}
-                                setIsVoiceMode={setIsVoiceMode}
-                                setLiveVoiceMessages={setLiveVoiceMessages}
-                            />
-                        )}
+                        {activeSessions.map((session) => {
+                            const isActive = session.id === activeSessionId;
+                            
+                            const isVoiceMode = session.isVoiceMode || false;
+                            const liveVoiceMessages = session.liveVoiceMessages || [];
+                            
+                            const setSessionInputValue = (val) => { updateSession(session.id, { inputValue: val }); };
+                            
+                            const setSessionSelectedFiles = (updater) => {
+                                if (typeof updater === 'function') {
+                                    setActiveSessions(prev => prev.map(s => s.id === session.id
+                                        ? { ...s, selectedFiles: updater(s.selectedFiles || []) }
+                                        : s
+                                    ));
+                                } else {
+                                    updateSession(session.id, { selectedFiles: updater });
+                                }
+                            };
+
+                            const setSessionVoiceMode = (val) => {
+                                const newValue = typeof val === 'function' ? val(session.isVoiceMode || false) : val;
+                                if (newValue === true) {
+                                    setActiveSessions(prev => prev.map(s => 
+                                        s.id === session.id
+                                            ? { ...s, isVoiceMode: true }
+                                            : { ...s, isVoiceMode: false, liveVoiceMessages: [] }
+                                    ));
+                                } else {
+                                    updateSession(session.id, { isVoiceMode: false });
+                                }
+                            };
+
+                            const setSessionLiveVoiceMessages = (val) => {
+                                updateSession(session.id, { liveVoiceMessages: typeof val === 'function' ? val(session.liveVoiceMessages || []) : val });
+                            };
+
+                            return (
+                                <div key={session.id} className={`w-full h-full ${isActive ? 'block' : 'hidden'}`}>
+                                    {(session.messages.length === 0 && session.isNew && !isVoiceMode) ? (
+                                        <WelcomeScreen
+                                            focusInput={isActive ? focusInput : false}
+                                            setFocusInput={setFocusInput}
+                                            onFeatureClick={handleFeatureClick}
+                                            inputValue={session.inputValue}
+                                            setInputValue={setSessionInputValue}
+                                            onSend={handleSend}
+                                            selectedFiles={session.selectedFiles}
+                                            setSelectedFiles={setSessionSelectedFiles}
+                                            disabled={isAnyTabLoading}
+                                            selectedLang={selectedLang}
+                                            activeSessionId={session.id}
+                                            isVoiceMode={isVoiceMode}
+                                            setIsVoiceMode={setSessionVoiceMode}
+                                            setLiveVoiceMessages={setSessionLiveVoiceMessages}
+                                        />
+                                    ) : (
+                                        <ChatMessages
+                                            focusInput={isActive ? focusInput : false}
+                                            setFocusInput={setFocusInput}
+                                            messages={isVoiceMode ? liveVoiceMessages : session.messages}
+                                            activeSession={session}
+                                            onTypingComplete={handleTypingComplete}
+                                            onLinkClick={handleLinkClick}
+                                            inputValue={session.inputValue}
+                                            setInputValue={setSessionInputValue}
+                                            onSend={handleSend}
+                                            selectedFiles={session.selectedFiles}
+                                            setSelectedFiles={setSessionSelectedFiles}
+                                            disabled={isAnyTabLoading}
+                                            hasMoreMessages={isVoiceMode ? false : session.hasMoreMessages}
+                                            isLoadingMore={isVoiceMode ? false : session.isLoadingMore}
+                                            onLoadMore={loadMoreMessages}
+                                            saveScrollPosition={saveScrollPosition}
+                                            selectedLang={selectedLang}
+                                            activeSessionId={session.id}
+                                            isVoiceMode={isVoiceMode}
+                                            setIsVoiceMode={setSessionVoiceMode}
+                                            setLiveVoiceMessages={setSessionLiveVoiceMessages}
+                                        />
+                                    )}
+                                </div>
+                            );
+                        })}
                     </div>
 
                     {/* FAQ Overlay */}

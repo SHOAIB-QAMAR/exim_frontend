@@ -5,8 +5,20 @@ import LogisticsLoader from '../../../components/common/LogisticsLoader';
 import InputArea from './InputArea';
 import API_CONFIG from '../../../services/api.config';
 import ImageOverlay from '../../../components/common/ImageOverlay';
-import { FaFilePdf, FaPlus } from 'react-icons/fa6';
+import { FaFilePdf, FaPlus } from 'react-icons/fa';
 import { pdfjs } from 'react-pdf';
+import { getCachedUrl } from '../../../services/fileCache';
+
+/** Thumbnail that caches its remote src as a blob for instant re-renders. */
+const CachedImage = React.memo(({ src, alt, className, onClick }) => {
+    const [cachedSrc, setCachedSrc] = useState(src);
+    useEffect(() => {
+        let cancelled = false;
+        if (src) getCachedUrl(src).then(url => { if (!cancelled) setCachedSrc(url); });
+        return () => { cancelled = true; };
+    }, [src]);
+    return <img src={cachedSrc} alt={alt} className={className} onClick={onClick} onError={(e) => { e.target.style.display = 'none'; }} />;
+});
 
 // Configure PDF.js worker for consistent rendering across previews and overlays
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -46,11 +58,24 @@ const MessageRow = React.memo(({
             {msg.role === 'user' && (
                 <div className="flex gap-2 md:gap-4 justify-end">
                     <div className={`
-                        ${(msg.pdf && !msg.content?.trim() && !msg.image) ? 'p-0 bg-transparent border-none' : 'px-3 py-2.5 md:p-4 bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/20'}
+                        ${(msg.pdfs?.length > 0 || msg.images?.length > 0 || msg.pdf || msg.image) ? 'p-0 bg-transparent border-none' : 'px-3 py-2.5 md:p-4 bg-[var(--brand-primary)]/15 border border-[var(--brand-primary)]/20'}
                         rounded-2xl leading-relaxed text-[13px] sm:text-sm md:text-base animate-fade-in-up max-w-[70%] md:max-w-[80%] text-[var(--text-primary)] rounded-tr-sm
                     `}>
-                        {msg.image && (
-                            <img
+                        {/* Multiple Images Support */}
+                        {msg.images && msg.images.length > 0 ? (
+                            <div className="flex flex-wrap gap-2 mb-2">
+                                {msg.images.map((imgUrl, i) => (
+                                    <CachedImage
+                                        key={i}
+                                        src={imgUrl}
+                                        alt={`Attachment ${i}`}
+                                        onClick={(e) => onImageClick && onImageClick(e.target.src)}
+                                        className="w-32 h-24 rounded-lg border border-[var(--border-color)] bg-black/5 cursor-pointer hover:opacity-90 transition-opacity object-cover"
+                                    />
+                                ))}
+                            </div>
+                        ) : msg.image ? (
+                            <CachedImage
                                 src={
                                     msg.image.startsWith('blob:') || msg.image.startsWith('http')
                                         ? msg.image
@@ -58,13 +83,39 @@ const MessageRow = React.memo(({
                                 }
                                 alt="Attached by user"
                                 onClick={(e) => onImageClick && onImageClick(e.target.src)}
-                                className="max-w-full max-h-36 rounded-lg mb-2 border border-[var(--border-color)] bg-black/5 cursor-pointer hover:opacity-90 transition-opacity"
-                                onError={(e) => { e.target.style.display = 'none'; }}
+                                className="w-32 h-24 rounded-lg mb-2 border border-[var(--border-color)] bg-black/5 cursor-pointer hover:opacity-90 transition-opacity object-cover"
                             />
-                        )}
+                        ) : null}
 
-                        {/* PDF Attachment Card (Matching Screenshot) */}
-                        {msg.pdf && (
+                        {/* Multiple PDF Support */}
+                        {msg.pdfs && msg.pdfs.length > 0 ? (
+                            <div className="flex flex-col gap-2 mb-3">
+                                {msg.pdfs.map((pdf, i) => (
+                                    <div
+                                        key={i}
+                                        className="flex items-center gap-3 p-3 bg-black/10 border border-white/5 rounded-xl cursor-pointer hover:bg-black/20 transition-all group/pdf"
+                                        onClick={() => {
+                                            const fullUrl = pdf.url.startsWith('blob:') || pdf.url.startsWith('http')
+                                                ? pdf.url
+                                                : `${API_CONFIG.API_BASE_URL}${pdf.url}`;
+                                            onImageClick && onImageClick(fullUrl);
+                                        }}
+                                    >
+                                        <div className="w-10 h-10 bg-[#f83c3c] rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover/pdf:scale-105">
+                                            <FaFilePdf className="text-white text-xl" />
+                                        </div>
+                                        <div className="flex flex-col min-w-0 overflow-hidden pr-2">
+                                            <span className="text-sm font-bold text-[var(--text-primary)] truncate">
+                                                {pdf.name || 'Document.pdf'}
+                                            </span>
+                                            <span className="text-[11px] text-[var(--text-secondary)] font-medium tracking-wide uppercase">
+                                                PDF
+                                            </span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        ) : (msg.pdf ? (
                             <div
                                 className="flex items-center gap-3 p-3 bg-black/10 border border-white/5 rounded-xl mb-3 cursor-pointer hover:bg-black/20 transition-all group/pdf"
                                 onClick={() => {
@@ -86,7 +137,7 @@ const MessageRow = React.memo(({
                                     </span>
                                 </div>
                             </div>
-                        )}
+                        ) : null)}
 
                         {msg.content}
                     </div>
@@ -177,6 +228,7 @@ MessageRow.displayName = 'MessageRow';
  * and complex scrolling behaviors (pagination anchoring, auto-scroll to bottom).
  */
 const ChatMessages = ({
+    isActive = true,
     messages,
     activeSession,
     onTypingComplete,
@@ -184,8 +236,8 @@ const ChatMessages = ({
     inputValue,
     setInputValue,
     onSend,
-    selectedFile,
-    setSelectedFile,
+    selectedFiles,
+    setSelectedFiles,
     disabled,
     hasMoreMessages,
     isLoadingMore,
@@ -258,7 +310,7 @@ const ChatMessages = ({
     // Handle scroll position restoration, pagination anchoring, and new message snapping
     useLayoutEffect(() => {
         const container = scrollContainerRef.current;
-        if (!container) return;
+        if (!container || !isActive) return;
 
         currentSessionIdRef.current = activeSession.id;
 
@@ -304,7 +356,7 @@ const ChatMessages = ({
 
         prevScrollHeightRef.current = container.scrollHeight;
         prevMessagesRef.current = messages;
-    }, [messages, activeSession.id, snapToBottom, activeSession.isPinnedToBottom, activeSession.scrollPosition]);
+    }, [messages, activeSession.id, snapToBottom, activeSession.isPinnedToBottom, activeSession.scrollPosition, isActive]);
 
 
     // DYNAMIC HEIGHT EFFECT: Typing & Loaders
@@ -312,7 +364,7 @@ const ChatMessages = ({
     // This happens frequently when the assistant is streaming text (typing effect), or when markdown blocks/images render. If the user is at the bottom, we push them down.
     useEffect(() => {
         const innerContainer = innerContainerRef.current;
-        if (!innerContainer) return;
+        if (!innerContainer || !isActive) return;
 
         let lastHeight = innerContainer.getBoundingClientRect().height;
 
@@ -328,7 +380,7 @@ const ChatMessages = ({
 
         resizeObserver.observe(innerContainer);
         return () => resizeObserver.disconnect();
-    }, [snapToBottom]);
+    }, [snapToBottom, isActive]);
 
 
     // PAGINATION OBSERVER: Load More Messages
@@ -419,8 +471,8 @@ const ChatMessages = ({
                         setInputValue={setInputValue}
                         onSend={onSend}
                         mode="bottom"
-                        selectedFile={selectedFile}
-                        setSelectedFile={setSelectedFile}
+                        selectedFiles={selectedFiles}
+                        setSelectedFiles={setSelectedFiles}
                         disabled={disabled}
                         selectedLang={selectedLang}
                         activeSessionId={activeSessionId}

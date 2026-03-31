@@ -30,8 +30,8 @@ const WelcomeScreen = ({
     inputValue,
     setInputValue,
     onSend,
-    selectedFile,
-    setSelectedFile,
+    selectedFiles,
+    setSelectedFiles,
     disabled,
     focusInput,
     setFocusInput,
@@ -65,8 +65,8 @@ const WelcomeScreen = ({
                     setInputValue={setInputValue}
                     onSend={onSend}
                     mode="bottom"
-                    selectedFile={selectedFile}
-                    setSelectedFile={setSelectedFile}
+                    selectedFiles={selectedFiles}
+                    setSelectedFiles={setSelectedFiles}
                     disabled={disabled}
                     selectedLang={selectedLang}
                     activeSessionId={activeSessionId}

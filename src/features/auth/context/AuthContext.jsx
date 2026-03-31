@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
 
     const login = useCallback(async (email, password) => {
         // Post to the external zipaworld customer login API
-        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/auth/customer/login`, {
+        const response = await fetch(`${API_CONFIG.AUTH_BASE_URL}/api/auth/customer/login`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

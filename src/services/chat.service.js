@@ -4,206 +4,170 @@ import { getLanguageCode } from '../config/languages';
 /**
  * ChatService
  * 
- * Provides methods for interacting with backend, including
- * thread management, message retrieval, and LiveKit token acquisition.
+ * Provides methods for interacting with backend, including thread management, message retrieval, and LiveKit token acquisition.
  */
 class ChatService {
 
-    /**
-     * Fetches a paginated list of the user's historical chat threads.
-     * 
-     * @param {number} [skip=0] - Offset for pagination.
-     * @param {number} [limit=20] - Maximum records per page.
-     * @returns {Promise<{ threads: Array, hasMore: boolean }>} Sanitized thread list and pagination status.
-     * @throws {Error} If the network request fails or returns an error status.
+    /* Fetches a paginated list of the user's historical chat threads.
+     * @param {number} skip - The number of records to offset/skip (used for pagination)
+     * @param {number} limit - The maximum number of threads to return per request
+     * @returns {Promise<Array>} An array of thread objects
      */
-    async getAllThreads(skip = 0, limit = 20) {
+    async getAllThreads(skip = 0, limit = 10) {
         const customerStr = localStorage.getItem('customer');
         const customerObj = customerStr ? JSON.parse(customerStr) : {};
         const resultData = customerObj.result || {};
         const custData = resultData.customerData || {};
         const custBranchData = resultData.customerBranchData || {};
+        const customerId = custBranchData.customerId || custData._id || '';
 
         const page = Math.floor(skip / limit) + 1;
 
-        // Construct specific payload structure
-        const payload = {
-            user_id: custBranchData.customerId || custData._id || resultData.csBuddyData?._id,
-            page: page,
-            customerId: custBranchData.customerId || custData._id,
-            customerName: resultData.csBuddyData?.name || custData.customerName || "Unknown",
-            customerBranchId: custBranchData._id || resultData.customerBranchData?._id,
-            customerBranchName: custBranchData.branchName || "Unknown",
-            customerBranchPersonId: resultData.customerBranchPersonId,
-            customerBranchPersonEmail: resultData.csBuddyData?.email ? [resultData.csBuddyData.email] : (custBranchData.emails || [])
-        };
-
-        const reqBodyStr = JSON.stringify(payload);
-        const startTime = performance.now();
-
-        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/zipAi/manager`, {
+        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/chat/list`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: reqBodyStr
+            body: JSON.stringify({ customerId, page }),
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: Failed to fetch threads`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to fetch threads`);
 
-        const resText = await response.text();
+        const data = await response.json();
+        // Backend returns: { status, all_chat: [{ _id, query_head, session_id }], count }
+        const rawThreads = data.all_chat || [];
 
-        // Environment-aware metrics logging
-        if (import.meta.env.DEV) {
-            const latency = performance.now() - startTime;
-            const resSizeBytes = new Blob([resText]).size;
-            const reqSizeBytes = new Blob([reqBodyStr]).size;
-            console.groupCollapsed(`📊 [Metrics] API: getAllThreads - ${Math.round(latency)}ms`);
-            console.log(`Latency: ${latency.toFixed(2)} ms`);
-            console.log(`Req Size: ${(reqSizeBytes / 1024).toFixed(2)} KB`);
-            console.log(`Res Size: ${(resSizeBytes / 1024).toFixed(2)} KB`);
-            console.groupEnd();
-        }
+        const threads = rawThreads.map(t => ({
+            threadId: t.session_id || t._id,
+            objectId: t._id,
+            title: t.query_head || 'New Chat',
+            sessionId: t.session_id || t._id,
+            messages: [],
+        }));
 
-        const data = JSON.parse(resText);
-
-        // NORMALIZE: ZipAI returns threads in several different nested structures depending on the environment
-        let rawThreads = [];
-        if (Array.isArray(data)) {
-            rawThreads = data;
-        } else if (data?.all_chat && Array.isArray(data.all_chat)) {
-            rawThreads = data.all_chat;
-        } else if (data?.result) {
-            if (Array.isArray(data.result)) {
-                rawThreads = data.result;
-            } else if (Array.isArray(data.result.data)) {
-                rawThreads = data.result.data;
-            }
-        } else if (data?.data && Array.isArray(data.data)) {
-            rawThreads = data.data;
-        }
-
-        // MAP: Convert specific backend keys to standard frontend properties
-        const threads = rawThreads.map(thread => ({
-            ...thread,
-            sessionId: thread.session_id || thread._id, // Use session_id if it exists
-            objectId: thread._id,                      // Always the MongoDB ID
-            title: thread.query_head || thread.title || "Untitled Conversation",
-            updatedAt: thread.updatedAt || thread.createdAt || new Date().toISOString()
-        })).sort((a, b) => new Date(b.updatedAt) - new Date(a.updatedAt));
-
-        const currentPage = data.page || page;
-        const hasMore = data.totalPages ? (currentPage < data.totalPages) : (rawThreads.length > 0);
+        // Backend paginates at CHAT_LIST_PAGE_SIZE (default 10)
+        // hasMore = there are more pages beyond this one
+        const hasMore = data.count !== undefined
+            ? (skip + rawThreads.length) < data.count
+            : rawThreads.length >= limit;
 
         return { threads, hasMore };
     }
 
-    /**
-     * Fetches a paginated list of messages for a specific chat thread.
-     * 
-     * @param {string} objectId - The database identifier (_id) of the thread.
-     * @param {number} [page=1] - The page number to fetch.
-     * @returns {Promise<Object>} The thread object containing a sanitized messages array.
+    /* Fetches a paginated list of messages for a specific chat thread.
+     * @param {string} threadId - The unique identifier of the target thread
+     * @param {number} page - The page number to fetch
+     * @returns {Promise<Object>} The thread details containing a messages array
      */
-    async getThreadMessages(objectId, page = 1) {
-        if (!objectId) throw new Error('objectId is required for message history');
+    async getThreadMessages(threadId, page = 1) {
+        if (!threadId) throw new Error('threadId is required but was not provided');
 
-        const payload = { id: objectId, page: page };
-        const reqBodyStr = JSON.stringify(payload);
         const startTime = performance.now();
 
-        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/zipAi/getHistoryChat`, {
+        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/chat/detail`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: reqBodyStr
+            body: JSON.stringify({ id: threadId, page }),
         });
 
-        if (!response.ok) {
-            throw new Error(`HTTP ${response.status}: Failed to fetch thread messages`);
-        }
+        const latency = performance.now() - startTime;
+        console.groupCollapsed(`📊 [Metrics] API: getThreadMessages - ${Math.round(latency)}ms`);
+        console.log(`Latency: ${latency.toFixed(2)} ms`);
+        console.groupEnd();
 
-        const resText = await response.text();
+        if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to fetch thread messages`);
 
-        if (import.meta.env.DEV) {
-            const latency = performance.now() - startTime;
-            console.groupCollapsed(`📊 [Metrics] API: getThreadMessages - ${Math.round(latency)}ms`);
-            console.log(`Latency: ${latency.toFixed(2)} ms`);
-            console.groupEnd();
-        }
+        const data = await response.json();
 
-        const data = JSON.parse(resText);
+        // ✅ Backend returns messages in `result`, not `messages`
+        const rawMessages = data.result || data.messages || data.all_chat || [];
 
-        // Normalize various API response shapes into a single array
-        let rawMessages = [];
-        if (Array.isArray(data)) rawMessages = data;
-        else if (data?.result && Array.isArray(data.result)) rawMessages = data.result;
-        else if (data?.all_chat && Array.isArray(data.all_chat)) rawMessages = data.all_chat;
-        else if (data?.data && Array.isArray(data.data)) rawMessages = data.data;
+        // ✅ Backend uses totalPages + page, not total + page_size
+        const hasMore = data.totalPages
+            ? Number(data.page || 1) < Number(data.totalPages)
+            : false;
 
         return {
-            objectId: objectId,
-            hasMore: data.totalPages ? ((data.page || page) < data.totalPages) : (rawMessages.length > 0),
+            threadId,
+            hasMore,
             messages: rawMessages.map((msg, index) => ({
                 ...msg,
-                id: msg._id || msg.id || `${objectId}-msg-${index}`,
+                id: msg._id || msg.id || msg.questionAnswer || `${threadId}-msg-${index}`,
+                // ✅ Backend uses `text` as the content field — prioritise it
                 role: msg.role === 'customer' ? 'user' : (msg.role || 'assistant'),
-                content: msg.text || msg.message || msg.content || '',
-                image: msg.image_url || msg.image,
-                imageUrl: msg.image_url || msg.imageUrl
-            }))
+                content: msg.text || msg.content || msg.message || '',
+                image: msg.image_url || msg.image || null,
+                // ✅ Extract multiple files from the backend `files` array with deduplication
+                images: [...new Set([
+                    ...(msg.image_url ? [msg.image_url] : []),
+                    ...(msg.image ? [msg.image] : []),
+                    ...(msg.files?.filter(f => f.file_type === 'image').map(f => f.url) || [])
+                ])],
+                pdfs: (() => {
+                    const seenUrls = new Set();
+                    const pdfs = [];
+                    if (msg.pdf) {
+                        pdfs.push({ url: msg.pdf, name: msg.pdf_name || 'Document.pdf' });
+                        seenUrls.add(msg.pdf);
+                    }
+                    (msg.files?.filter(f => f.file_type === 'pdf') || []).forEach(f => {
+                        if (!seenUrls.has(f.url)) {
+                            pdfs.push({ url: f.url, name: f.filename, ...f });
+                            seenUrls.add(f.url);
+                        }
+                    });
+                    return pdfs;
+                })(),
+            })),
         };
     }
 
-    /**
-     * Permanently deletes a chat thread.
-     * 
-     * @param {string} objectId - The unique database identifier (_id) of the thread.
-     * @returns {Promise<boolean>} True if the deletion was confirmed by the server.
+    /* Permanently deletes a chat thread and all its associated messages.
+     * @param {string} threadId - The unique identifier of the thread to delete
+     * @returns {Promise<boolean>} Resolves to true if the deletion was successful
      */
-    async deleteThread(objectId) {
-        if (!objectId) throw new Error('objectId is required for deletion');
+    async deleteThread(threadId) {
+        if (!threadId) throw new Error('threadId is required but was not provided');
 
         const customerStr = localStorage.getItem('customer');
         const customerObj = customerStr ? JSON.parse(customerStr) : {};
         const resultData = customerObj.result || {};
-        const userId = resultData.customerBranchData?.customerId || resultData.customerData?._id || '';
+        const custData = resultData.customerData || {};
+        const custBranchData = resultData.customerBranchData || {};
+        const customerId = custBranchData.customerId || custData._id || '';
 
-        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/zipAi/delete`, {
-            method: 'POST',
+        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/chat/${threadId}`, {
+            method: 'DELETE',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: objectId, user_id: userId })
+            body: JSON.stringify({ customerId }),
         });
 
-        if (!response.ok) {
-            throw new Error(`Deletion failed (HTTP ${response.status})`);
-        }
+        if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to delete thread`);
 
+        console.log(`[ChatService] Deleted thread: ${threadId}`);
         return true;
     }
-
-    /**
-     * Acquires a LiveKit token for real-time voice and streaming capabilities.
-     * 
-     * @param {string} sessionId - The current active session ID.
-     * @param {string} lang - The display name of the selected language (e.g., 'English').
-     * @returns {Promise<string>} The JWT token required to join a LiveKit room.
+    /* Fetches a LiveKit connection token for voice chat.
+     * @param {string} sessionId - The session ID of the active chat
+     * @param {string} lang - The selected `user_lang` string for speech-to-text
+     * @returns {Promise<string>} The LiveKit connection token
      */
-    async getLiveKitToken(sessionId, lang) {
+    async getLiveKitToken__deprecated(sessionId, lang) {
         const customerStr = localStorage.getItem('customer');
         const customerObj = customerStr ? JSON.parse(customerStr) : {};
         const resultData = customerObj.result || {};
         const custData = resultData.customerData || {};
         const custBranchData = resultData.customerBranchData || {};
 
-        // Detect OS for backend logging purposes
         const device = navigator.platform.includes('Mac') ? 'macOS' : (navigator.platform.includes('Win') ? 'Windows' : navigator.platform);
+
+
+
         const mappedLangCode = getLanguageCode(lang);
 
         const payload = {
             thread_id: "",
             session_id: sessionId || "",
             user_id: custBranchData.customerId || custData._id || resultData.csBuddyData?._id || "",
-            device,
+            device: device,
             customerId: custBranchData.customerId || custData._id || "",
             customerName: resultData.csBuddyData?.name || custData.customerName || "Unknown",
             customerBranchId: custBranchData._id || resultData.customerBranchData?._id || "",
@@ -212,19 +176,89 @@ class ChatService {
             customerBranchPersonEmail: resultData.csBuddyData?.email ? [resultData.csBuddyData.email] : (custBranchData.emails || []),
             user_lang: mappedLangCode
         };
+        console.log(`customer_id: ${custBranchData.customerId || custData._id || ""}`)
+        console.log(`chat_id: ${sessionId || ""}`)
+        console.log(`language: ${mappedLangCode}`)
 
-        const response = await fetch(`https://newimgchatbotnew1.zipaworld.com/getToken`, {
+        const rawCustomerId = custBranchData.customerId || custData._id || csBuddyData._id || '';
+        const languageCode = getLanguageCode(lang);
+
+        // ✅ Prefix to match the room name pattern the LiveKit dispatch rule expects
+        // Jinja uses: cust_{uuid}_chat_{timestamp}
+        // We mirror that exact format here
+        const customerId = rawCustomerId.startsWith('cust_')
+            ? rawCustomerId
+            : `cust_${rawCustomerId}`;
+
+        const chatId = sessionId
+            ? (sessionId.startsWith('chat_') ? sessionId : `chat_${sessionId}`)
+            : `chat_${Date.now()}`;
+
+        const payloadnew = {
+            customer_id: customerId,
+            chat_id: chatId,
+            language: languageCode,
+        };
+
+        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/voice/token`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json'
+            },
             body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
-            throw new Error(`Token API failed (HTTP ${response.status})`);
+            throw new Error(`HTTP ${response.status}: Failed to get LiveKit token`);
         }
 
         const data = await response.json();
-        return data.token;
+        console.log('[LiveKit Token API] Full Response:', data);
+        // Return the full object — InputArea needs token, url, AND room
+        // to connect: room.connect(data.url, data.token)
+        return {
+            token: data.token,
+            url: data.url,
+            room: data.room,
+        };
+    }
+    async getLiveKitToken(sessionId, lang) {
+        const customerStr = localStorage.getItem('customer');
+        const customerObj = customerStr ? JSON.parse(customerStr) : {};
+        const resultData = customerObj.result || {};
+        const custData = resultData.customerData || {};
+        const custBranchData = resultData.customerBranchData || {};
+        const csBuddyData = resultData.csBuddyData || {};
+
+        const rawId = custBranchData.customerId || custData._id || csBuddyData._id || '';
+        const languageCode = getLanguageCode(lang);
+
+        // Mirror Jinja template format exactly so the LiveKit dispatch rule matches
+        const customerId = rawId.startsWith('cust_') ? rawId : `cust_${rawId}`;
+        const chatId = sessionId
+            ? (sessionId.startsWith('chat_') ? sessionId : `chat_${sessionId}`)
+            : `chat_${Date.now()}`;
+
+        const payload = {
+            customer_id: customerId,   // → cust_633164d22c151b0884b3190b
+            chat_id: chatId,       // → chat_96371140-2a69-11f1-bacf-c73a3959cd59
+            language: languageCode,
+        };
+
+        const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/voice/token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(err.detail || `HTTP ${response.status}: Failed to get LiveKit token`);
+        }
+
+        const data = await response.json();
+        console.log('[LiveKit Token API] Full Response:', data);
+        return { token: data.token, url: data.url, room: data.room };
     }
 }
 

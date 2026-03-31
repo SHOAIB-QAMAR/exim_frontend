@@ -1,13 +1,15 @@
 import { useRef, useCallback } from 'react';
 import { uuidv4 } from '../../../utils/uuid.v4.js';
-import { validateImage, compressImage, uploadImageToSupabase } from '../../../services/uploadService';
+// CHANGED: Replaced validateImage, compressImage, uploadImageToSupabase
+//          with validateFile, compressImage, uploadFileToBackend
+import { getLanguageCode } from '../../../config/languages';
 
 /**
  * useChatActions Hook
- * 
- * Encapsulates all chat action handlers: sending, and deleting messages, 
+ *
+ * Encapsulates all chat action handlers: sending, retrying, and deleting messages,
  * as well as handling feature clicks and search results.
- * 
+ *
  * @param {Object} params
  * @param {Object} params.activeSession - Currently visible session object
  * @param {string} params.activeSessionId - ID of the active session
@@ -22,7 +24,7 @@ import { validateImage, compressImage, uploadImageToSupabase } from '../../../se
  * @param {Function} params.closeSearchPanel - Callback to close the search overlay
  * @param {Function} params.closeMobileSidebar - Callback to hide the mobile sidebar
  * @param {Function} [params.setFocusTrigger] - Optional trigger to focus the input area
- * 
+ *
  * @returns {Object} An object containing all stable action handlers
  */
 export const useChatActions = ({
@@ -43,68 +45,77 @@ export const useChatActions = ({
     const isSendingRef = useRef(false);
 
     /**
+     * Builds the files array for the gpt_query payload from multiple upload results.
+     * 
+     * @param {Array} uploadResults - Array of UploadResult objects
+     * @returns {Array|null}
+     */
+    const buildFilesPayload = (uploadResults) => {
+        if (!uploadResults || uploadResults.length === 0) return null;
+        return uploadResults.map(res => ({
+            url: res.url,
+            file_type: res.file_type,
+            filename: res.filename,
+            page_count: res.page_count,
+            truncated: res.truncated,
+        }));
+    };
+
+    /**
      * Handles sending a new chat message.
      * Includes optimistic updates and multi-modal attachment handling.
-     * 
+     *
+     * selectedFiles shape coming from InputArea:
+     *   []                    — nothing attached
+     *   Array of UploadResult objects — pre-uploaded by InputArea:
+     *     { url, file_type, filename, page_count, truncated, previewBlobUrl }
+     *
      * @param {string} text - Message content
-     * @param {Object} [options={}] - Additional options (e.g., isRetry, imageUrl)
+     * @param {Object} [options={}] - Additional options (e.g., isRetry, fileResults)
      */
     const handleSend = useCallback(async (text, options = {}) => {
         if (isSendingRef.current) return;
         isSendingRef.current = true;
 
         try {
-            // Early return if message is empty and no attachment exists
-            if (!text.trim() && !activeSession.selectedFile && !options.imageUrl) {
+            const hasFiles = (activeSession.selectedFiles && activeSession.selectedFiles.length > 0) ||
+                (options.fileResults && options.fileResults.length > 0);
+
+            if (!text.trim() && !hasFiles) {
                 isSendingRef.current = false;
                 return;
             }
 
             const timestamp = Date.now();
             let userMsg = { role: 'user', content: text, timestamp };
-            let uploadedImageUrl = null;
-            let blobUrl = null;
+            let uploadResults = [];
 
-            // Handle image/PDF upload if present, or use existing from retry
-            if (activeSession.selectedFile && !options.isRetry) {
-                if (typeof activeSession.selectedFile === 'string') {
-                    // Already uploaded by background process in InputArea (Image)
-                    uploadedImageUrl = activeSession.selectedFile;
-                    userMsg.image = uploadedImageUrl;
-                } else if (activeSession.selectedFile.type === 'pdf') {
-                    // PDF already uploaded by InputArea
-                    userMsg.pdf = activeSession.selectedFile.url;
-                    userMsg.pdf_name = activeSession.selectedFile.name;
-                } else {
-                    // Fallback: wait for direct upload before sending
-                    blobUrl = URL.createObjectURL(activeSession.selectedFile);
-                    userMsg.image = blobUrl;
-
-                    try {
-                        // Notify UI that upload is in progress
-                        setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, isUploading: true } : s));
-
-                        validateImage(activeSession.selectedFile);
-                        const compressedImage = await compressImage(activeSession.selectedFile);
-                        uploadedImageUrl = await uploadImageToSupabase(compressedImage);
-
-                        userMsg.image = uploadedImageUrl; // Replace blob
-                        if (blobUrl) URL.revokeObjectURL(blobUrl);
-                        blobUrl = null;
-                    } catch (uploadError) {
-                        console.error('[useChatActions] Upload failed:', uploadError);
-                        alert('Image upload failed. Please try again.');
-                        setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? { ...s, isUploading: false } : s));
-                        isSendingRef.current = false;
-                        return;
-                    }
-                }
-            } else if (options.isRetry && options.imageUrl) {
-                uploadedImageUrl = options.imageUrl;
-                userMsg.image = uploadedImageUrl;
+            // ── Determine upload results ───────────────────────────────────────
+            if (options.isRetry && options.fileResults) {
+                uploadResults = options.fileResults;
+            } else if (activeSession.selectedFiles && activeSession.selectedFiles.length > 0) {
+                // In the logic where InputArea handles uploads, we just take them
+                uploadResults = activeSession.selectedFiles;
             }
 
-            // Optimistic UI update: message appears instantly
+            // ── Prepare User Message Display (Images only) ──────────────────────
+            // For UI simplicity, if there are multiple images, we'll store them in an array
+            // or just the first one for the legacy 'image' field if needed.
+            const images = uploadResults.filter(r => r.file_type === 'image');
+            if (images.length > 0) {
+                userMsg.image = images[0].previewBlobUrl || images[0].url;
+                // Store all image URLs for multi-image rendering in ChatMessages if handled
+                userMsg.images = images.map(img => img.previewBlobUrl || img.url);
+            }
+
+            // PDFs are now entirely handled in the payload/files array, but we can store 
+            // metadata in userMsg for history/UI rendering.
+            const pdfs = uploadResults.filter(r => r.file_type === 'pdf');
+            if (pdfs.length > 0) {
+                userMsg.pdfs = pdfs.map(p => ({ url: p.url, name: p.filename, ...p }));
+            }
+
+            // ── Optimistic UI update ──────────────────────────────────────────
             const newTitle = (activeSession.messages.length === 0 && text.trim())
                 ? text.split(' ').slice(0, 4).join(' ')
                 : activeSession.title;
@@ -112,15 +123,15 @@ export const useChatActions = ({
             setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? {
                 ...s,
                 messages: [...s.messages, userMsg],
-                inputValue: "",
+                inputValue: '',
                 isThinking: true,
                 thinkingSteps: [],
                 title: newTitle,
-                selectedFile: null,
-                isUploading: false
+                selectedFiles: [], // Clear selection
+                isUploading: false,
             } : s));
 
-            // Extract customer metadata for secure backend processing
+            // ── Build gpt_query payload ───────────────────────────────────────
             const customerStr = localStorage.getItem('customer');
             const customerObj = customerStr ? JSON.parse(customerStr) : {};
             const resultData = customerObj.result || {};
@@ -130,70 +141,82 @@ export const useChatActions = ({
 
             const payload = {
                 question: text,
-                thread_id: "",
-                user_id: custBranchData.customerId || custData._id || csBuddyData._id || "",
-                customerId: custBranchData.customerId || custData._id || "",
-                customerName: csBuddyData.name || custData.customerName || "Unknown",
-                customerBranchId: custBranchData._id || "",
-                customerBranchName: custBranchData.branchName || "Unknown",
-                customerBranchPersonId: resultData.customerBranchPersonId || "",
-                customerBranchPersonEmail: csBuddyData.email ? [csBuddyData.email] : (custBranchData.emails || []),
+                thread_id: '',
+                user_id: custBranchData.customerId || custData._id || csBuddyData._id || '',
+                customerId: custBranchData.customerId || custData._id || '',
+                customerName: csBuddyData.name || custData.customerName || 'Unknown',
+                customerBranchId: custBranchData._id || '',
+                customerBranchName: custBranchData.branchName || 'Unknown',
+                customerBranchPersonId: resultData.customerBranchPersonId || '',
+                customerBranchPersonEmail: csBuddyData.email
+                    ? [csBuddyData.email]
+                    : (custBranchData.emails || []),
                 questionAnswer: uuidv4(),
-                session_id: activeSession.sessionId || "",
-                language: selectedLang?.language || "en-IN",
+                session_id: activeSession.sessionId || '',
+                language: getLanguageCode(selectedLang?.name || 'English (IN)'),
             };
 
-            if (uploadedImageUrl) {
-                payload.image = uploadedImageUrl;
-            } else if (userMsg.pdf) {
-                payload.pdf = userMsg.pdf;
-                payload.pdf_name = userMsg.pdf_name;
+            const filesPayload = buildFilesPayload(uploadResults);
+            if (filesPayload) {
+                payload.files = filesPayload;
             }
 
-            // Trigger WebSocket transmission
+            // ── Send ─────────────────────────────────────────────────────────
             const sent = sendMessage(activeSessionId, payload);
 
             if (!sent) {
-                // If the socket service reports failure, notify the user
                 setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? {
                     ...s,
                     isThinking: false,
                     messages: [...s.messages, {
                         role: 'assistant',
-                        content: "Error: Socket connection unavailable. Retrying...",
+                        content: 'Error: Connection failed. Please try again.',
                         isNew: true,
-                        timestamp: Date.now()
-                    }]
+                        timestamp: Date.now(),
+                    }],
                 } : s));
             }
+
         } catch (error) {
-            console.error('[useChatActions] Send failure:', error);
+            console.error('[useChatActions] handleSend error:', error);
             setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? {
                 ...s,
                 isThinking: false,
                 messages: [...s.messages, {
                     role: 'assistant',
-                    content: "Something went wrong. Please try sending again.",
+                    content: `Error: Could not send message. ${error.message || ''}`,
                     isNew: true,
-                    timestamp: Date.now()
-                }]
+                    timestamp: Date.now(),
+                }],
             } : s));
         } finally {
             isSendingRef.current = false;
         }
     }, [activeSession, activeSessionId, setActiveSessions, sendMessage, selectedLang]);
 
-
     /**
-     * Finalizes message formatting once typing animations complete.
+     * Retries the last user message.
      */
-    const handleTypingComplete = useCallback((index) => {
-        const newMessages = activeSession.messages.map((msg, i) =>
-            i === index ? { ...msg, isNew: false } : msg
-        );
-        updateActiveSession({ messages: newMessages });
-    }, [activeSession.messages, updateActiveSession]);
+    const handleRetry = useCallback((text, fileResult = null) => {
+        handleSend(text, { isRetry: true, fileResult });
+    }, [handleSend]);
 
+
+    // ── Typing complete ───────────────────────────────────────────────────────
+    /**
+     * CHANGED: Old version updated individual message isNew flags via updateActiveSession.
+     *          New version sets isThinking: false + clears thinkingSteps at the session level,
+     *          and triggers input focus.
+     */
+    const handleTypingComplete = useCallback((sessionId) => {
+        setActiveSessions(prev => prev.map(s =>
+            s.id === sessionId ? { ...s, isThinking: false, thinkingSteps: [] } : s
+        ));
+        if (setFocusTrigger) setFocusTrigger(true);
+    }, [setActiveSessions, setFocusTrigger]);
+
+
+    // ── Feature / starter click ───────────────────────────────────────────────
     /**
      * Activates a starter prompt or secondary feature.
      */
@@ -202,6 +225,8 @@ export const useChatActions = ({
         setFocusTrigger?.(true);
     }, [updateActiveSession, setFocusTrigger]);
 
+
+    // ── Search result click ───────────────────────────────────────────────────
     /**
      * Direct navigation from a search result item.
      */
@@ -212,22 +237,8 @@ export const useChatActions = ({
         setFocusTrigger?.(true);
     }, [updateActiveSession, closeSearchPanel, closeMobileSidebar, setFocusTrigger]);
 
-    /**
-     * Initializes a new session based on a search suggestion.
-     */
-    const handleSearchStartChat = useCallback((text) => {
-        handleNewChat();
-        setTimeout(() => {
-            setActiveSessions(prev => {
-                const last = prev[prev.length - 1];
-                return prev.map(s => s.id === last.id ? { ...s, inputValue: text } : s);
-            });
-            setFocusTrigger?.(true);
-        }, 50);
-        closeSearchPanel();
-        closeMobileSidebar();
-    }, [handleNewChat, setActiveSessions, setFocusTrigger, closeSearchPanel, closeMobileSidebar]);
 
+    // ── Delete chat ───────────────────────────────────────────────────────────
     /**
      * Coordinates chat deletion with server-side removal and local state cleanup.
      */
@@ -243,12 +254,33 @@ export const useChatActions = ({
         }
     }, [deleteThread, activeSessions, handleTabClose]);
 
+
+    // ── Search: start new chat (kept from previous code) ─────────────────────
+    /**
+     * NOTE: handleSearchStartChat is retained from the previous version in case
+     *       any existing consumers still reference it. Remove if no longer needed.
+     */
+    const handleSearchStartChat = useCallback((text) => {
+        handleNewChat();
+        setTimeout(() => {
+            setActiveSessions(prev => {
+                const last = prev[prev.length - 1];
+                return prev.map(s => s.id === last.id ? { ...s, inputValue: text } : s);
+            });
+            setFocusTrigger?.(true);
+        }, 50);
+        closeSearchPanel?.();
+        closeMobileSidebar?.();
+    }, [handleNewChat, setActiveSessions, setFocusTrigger, closeSearchPanel, closeMobileSidebar]);
+
+
     return {
         handleSend,
+        handleRetry,
         handleTypingComplete,
         handleFeatureClick,
         handleSearchResultClick,
+        handleDeleteChat,
         handleSearchStartChat,
-        handleDeleteChat
     };
 };

@@ -53,7 +53,7 @@ describe('useThreads', () => {
             });
 
             expect(result.current.threads).toEqual(threads);
-            expect(mockGetAllThreads).toHaveBeenCalledWith(0, 20);
+            expect(mockGetAllThreads).toHaveBeenCalledWith(0, 10);
         });
 
         it('sets fetchError on failure', async () => {

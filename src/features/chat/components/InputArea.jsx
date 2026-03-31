@@ -4,8 +4,8 @@ import Webcam from 'react-webcam';
 import Tooltip from '../../../components/common/Tooltip';
 import ImageOverlay from '../../../components/common/ImageOverlay';
 import { useUI } from '../../../providers/UIContext';
-import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaFilePdf, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark } from "react-icons/fa6";
-import { validateImage, validatePdf, compressImage, uploadImageToSupabase } from '../../../services/uploadService';
+import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark, FaFilePdf } from "react-icons/fa6";
+import { processAndUploadFile } from '../../../services/uploadService';
 import chatService from '../../../services/chat.service';
 import { getLanguageCode } from '../../../config/languages';
 
@@ -27,32 +27,87 @@ import '@livekit/components-styles';
 function LiveKitEventBridge({ setLiveVoiceMessages, selectedLang }) {
     const room = useRoomContext();
     const segmentTracker = useRef(new Map());
-    const prevLangRef = useRef(selectedLang?.name);
+    const prevLangRef = useRef(null); // null → forces initial sync on first connection
 
-    // Flawlessly transmit Language changes to the AI Agent over the active connection
+    /**
+     * Sends the BCP-47 language code to the backend agent via LiveKit text stream.
+     * Includes room-state check and automatic retry on transient failures.
+     */
+    const sendFnRef = useRef(null);
+    const sendLanguageToAgent = useCallback(async (langName, attempt = 0) => {
+        if (!room?.localParticipant) {
+            console.warn('[LK-Bridge] No room/localParticipant — language NOT sent');
+            return;
+        }
+
+        if (room.state !== 'connected') {
+            console.warn(`[LK-Bridge] Room state="${room.state}" — deferring (attempt ${attempt + 1})`);
+            if (attempt < 3) {
+                setTimeout(() => sendFnRef.current?.(langName, attempt + 1), 800);
+            }
+            return;
+        }
+
+        const bcp47Code = getLanguageCode(langName);
+        console.log(`[LK-Bridge] Sending language: "${langName}" → "${bcp47Code}" (attempt ${attempt + 1})`);
+
+        try {
+            if (typeof room.localParticipant.streamText === 'function') {
+                const writer = await room.localParticipant.streamText({ topic: 'user_lang' });
+                await writer.write(bcp47Code);
+                await writer.close();
+                console.log(`[LK-Bridge] ✅ streamText("user_lang") sent successfully: ${bcp47Code}`);
+            } else {
+                console.warn('[LK-Bridge] streamText unavailable — falling back to publishData');
+                const encoder = new TextEncoder();
+                await room.localParticipant.publishData(encoder.encode(bcp47Code), {
+                    topic: 'user_lang',
+                    reliable: true,
+                });
+                console.log(`[LK-Bridge] ✅ publishData fallback sent: ${bcp47Code}`);
+            }
+        } catch (err) {
+            console.error(`[LK-Bridge] ❌ Language send failed (attempt ${attempt + 1}):`, err);
+            if (attempt < 2) {
+                setTimeout(() => sendFnRef.current?.(langName, attempt + 1), 500);
+            }
+        }
+    }, [room]);
+    useEffect(() => { sendFnRef.current = sendLanguageToAgent; }, [sendLanguageToAgent]);
+
+    // Sync language on initial connection + on every subsequent language change
     useEffect(() => {
         if (!room || !selectedLang?.name || !room.localParticipant) return;
 
         if (selectedLang.name !== prevLangRef.current) {
+            const isInitial = prevLangRef.current === null;
             prevLangRef.current = selectedLang.name;
-            try {
-                // Translate that converts a user-friendly display name into a machine-readable standard.
-                const bcp47Code = getLanguageCode(selectedLang.name);
 
-                // LiveKit Text Stream (The exact requested format from the Zipaworld python backend source code!)
-                if (typeof room.localParticipant.streamText === 'function') {
-                    room.localParticipant.streamText({ topic: 'user_lang' }).then(async (streamWriter) => {
-                        await streamWriter.write(bcp47Code);
-                        await streamWriter.close();
-                        console.log(`Successfully piped text stream for "user_lang" directly to backend.`);
-                    }).catch(e => console.warn('StreamText error:', e));
-                }
-
-            } catch (e) {
-                console.error('Data channel language switch failed:', e);
+            if (isInitial) {
+                // First mount: wait briefly for the data channel to finish setup
+                const t = setTimeout(() => sendLanguageToAgent(selectedLang.name), 600);
+                return () => clearTimeout(t);
+            } else {
+                // User switched language mid-session
+                sendLanguageToAgent(selectedLang.name);
             }
         }
-    }, [room, selectedLang]);
+    }, [room, selectedLang, sendLanguageToAgent]);
+
+    // Resync language automatically after (re)connection events
+    useEffect(() => {
+        if (!room) return;
+
+        const handleConnected = () => {
+            console.log('[LK-Bridge] Room (re)connected — resyncing language');
+            if (selectedLang?.name) {
+                setTimeout(() => sendLanguageToAgent(selectedLang.name), 400);
+            }
+        };
+
+        room.on(RoomEvent.Connected, handleConnected);
+        return () => room.off(RoomEvent.Connected, handleConnected);
+    }, [room, selectedLang, sendLanguageToAgent]);
 
     useEffect(() => {
         if (!room || !setLiveVoiceMessages) return;
@@ -122,17 +177,10 @@ function VoiceCallUI({ handleVoiceCancel, isVoiceConnected, soundEnabled, toggle
     const micInitialized = useRef(false);
     useEffect(() => {
         if (!localParticipant || micInitialized.current) return;
-
-        // Only trigger if not already enabled by LiveKitRoom audio=true
-        if (!isMicrophoneEnabled) {
-            micInitialized.current = true;
-            console.log('Initial Microphone State: ON (Manual trigger)');
-            localParticipant.setMicrophoneEnabled(true).catch(e => console.error('[VoiceCallUI] Mic start error:', e));
-        } else {
-            micInitialized.current = true;
-            console.log('Initial Microphone State: ON (Already enabled)');
-        }
-    }, [localParticipant, isMicrophoneEnabled]);
+        micInitialized.current = true;
+        console.log('Initial Microphone State: ON');
+        localParticipant.setMicrophoneEnabled(true).catch(e => console.error('[VoiceCallUI] Mic start error:', e));
+    }, [localParticipant]);
 
     // Fake pulse visualizer
     useEffect(() => {
@@ -230,7 +278,7 @@ function VoiceCallUI({ handleVoiceCancel, isVoiceConnected, soundEnabled, toggle
  */
 const InputArea = ({
     inputValue, setInputValue, onSend, mode,
-    selectedFile, setSelectedFile, disabled = false,
+    selectedFiles, setSelectedFiles, disabled = false,
     focusInput, setFocusInput, selectedLang, activeSessionId,
     isVoiceMode, setIsVoiceMode, setLiveVoiceMessages
 }) => {
@@ -238,7 +286,7 @@ const InputArea = ({
     const notificationId = React.useId();
     const attachMenuId = React.useId();
     const textareaRef = useRef(null);
-    const fileInputRef = useRef(null);
+    const imageInputRef = useRef(null);
     const pdfInputRef = useRef(null);
     const webcamRef = useRef(null);
     const menuRef = useRef(null);
@@ -254,6 +302,7 @@ const InputArea = ({
 
     // --- LiveKit Component State ---
     const [activeToken, setActiveToken] = useState(null);
+    const [activeServerUrl, setActiveServerUrl] = useState(null);  // NEW
     const isFetchingRef = useRef(false);
     const [soundEnabled, setSoundEnabled] = useState(true);
 
@@ -284,17 +333,38 @@ const InputArea = ({
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [showAttachMenu]);
 
-    // Image preview cleanup
-    const previewUrl = useMemo(() => {
-        if (!selectedFile) return null;
-        if (typeof selectedFile === 'string') return selectedFile;
-        if (typeof selectedFile === 'object' && selectedFile.url) return selectedFile.url;
-        try { return URL.createObjectURL(selectedFile); } catch { return null; }
-    }, [selectedFile]);
+    // Previews cleanup and URL generation
+    const previewUrls = useMemo(() => {
+        if (!selectedFiles || selectedFiles.length === 0) return [];
+
+        return selectedFiles.map(file => {
+            if (typeof file === 'object' && file.url) {
+                if (file.file_type === 'pdf') return { type: 'pdf', url: file.url, name: file.filename, ...file };
+                return { type: 'image', url: file.previewBlobUrl || file.url, ...file };
+            }
+            if (file instanceof File) {
+                if (file.type.startsWith('image/')) {
+                    try { return { type: 'image', url: URL.createObjectURL(file), file }; } catch { return null; }
+                }
+                return { type: 'pdf', file };
+            }
+            return null;
+        }).filter(Boolean);
+    }, [selectedFiles]);
 
     useEffect(() => {
-        return () => { if (previewUrl && previewUrl.startsWith('blob:')) URL.revokeObjectURL(previewUrl); };
-    }, [previewUrl]);
+        return () => {
+            previewUrls.forEach(p => {
+                if (p.url && p.url.startsWith('blob:')) URL.revokeObjectURL(p.url);
+            });
+        };
+    }, [previewUrls]);
+
+    // Also revoke previewBlobUrl stored inside the UploadResult when selectedFiles change:
+    useEffect(() => {
+        // Find URLs that were in previous selectedFiles but not in current
+        // For simplicity, we can rely on the cleanup above or more specific tracking if needed
+    }, [selectedFiles]);
 
 
     // --- Voice Transition Logic ---
@@ -304,8 +374,9 @@ const InputArea = ({
             isFetchingRef.current = true;
             showNotification('Connecting to LiveKit...', null);
             const langName = selectedLang?.name || 'English (IN)';
-            const t = await chatService.getLiveKitToken(activeSessionId || "", langName);
-            setActiveToken(t);
+            const { token, url } = await chatService.getLiveKitToken(activeSessionId || "", langName);
+            setActiveToken(token);
+            setActiveServerUrl(url);
         } catch (e) {
             console.error('Connection failed:', e);
             showNotification('Voice connection failed', 3000);
@@ -317,6 +388,7 @@ const InputArea = ({
 
     const handleVoiceCancel = useCallback((closeMode = true) => {
         setActiveToken(null); // Instantly unmounts LiveKitRoom
+        setActiveServerUrl(null);  // NEW
         if (closeMode) {
             if (setIsVoiceMode) setIsVoiceMode(false);
             showNotification('Voice mode closed', 2000);
@@ -340,10 +412,19 @@ const InputArea = ({
         }
     }, [isVoiceMode, activeToken, fetchAndConnect]);
 
+    // Ensure stale tokens are dropped if voice mode is disabled externally or tab switches
+    useEffect(() => {
+        if (!isVoiceMode) {
+            setActiveToken(null);
+            setActiveServerUrl(null);
+            isFetchingRef.current = false;
+        }
+    }, [isVoiceMode, activeSessionId]);
+
     // --- Input Text Chat Overrides ---
     const handleSend = () => {
         if (disabled) return;
-        if (inputValue.trim() || selectedFile) {
+        if (inputValue.trim() || (selectedFiles && selectedFiles.length > 0)) {
             onSend(inputValue);
             if (textareaRef.current) textareaRef.current.style.height = 'auto';
             if (isVoiceMode) handleVoiceCancel(true); // Escape voice on manual typing
@@ -367,72 +448,60 @@ const InputArea = ({
 
     // --- Media Pickers ---
     const handleFileChange = async (e) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-            if (!validTypes.includes(file.type)) { alert('Please select a valid image file'); return; }
-            if (file.size > 10 * 1024 * 1024) { alert('Image size must be less than 10MB'); return; }
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) { e.target.value = ''; return; }
+
+        for (const file of files) {
+            const isPdf = file.type === 'application/pdf' ||
+                (file.type === 'application/octet-stream' && file.name.toLowerCase().endsWith('.pdf'));
+            const label = isPdf ? 'document' : 'image';
 
             try {
-                showNotification('Image uploading...', null);
-                validateImage(file);
-                const compressedImage = await compressImage(file);
-                const publicUrl = await uploadImageToSupabase(compressedImage);
-                setSelectedFile(publicUrl);
-                showNotification('Image loaded successfully', 3000);
-            } catch {
-                showNotification('Image upload failed', 3000);
-            }
-        }
-        e.target.value = '';
-    };
-
-    const handlePdfChange = async (e) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            try {
-                showNotification('PDF uploading...', null);
-                validatePdf(file);
-                const publicUrl = await uploadImageToSupabase(file);
-                setSelectedFile({ url: publicUrl, type: 'pdf', name: file.name });
-                showNotification('PDF loaded successfully', 3000);
+                showNotification(`Uploading ${label}...`, null);
+                const uploadResult = await processAndUploadFile(file);
+                setSelectedFiles(prev => [...prev, uploadResult]);
+                showNotification(`${isPdf ? 'Document' : 'Image'} ready`, 3000);
             } catch (err) {
-                showNotification(err.message || 'PDF upload failed', 3000);
+                console.error('[InputArea] handleFileChange upload failed:', err);
+                showNotification(err.message || `${label} upload failed`, 3000);
             }
         }
-        e.target.value = '';
+        e.target.value = ''; // reset input so the same file can be re-selected
     };
+
 
     const handleCapture = useCallback(() => {
         const imageSrc = webcamRef.current?.getScreenshot();
-        if (imageSrc) {
-            fetch(imageSrc)
-                .then(res => res.blob())
-                .then(async blob => {
-                    const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
-                    setShowCamera(false);
-                    try {
-                        showNotification('Image uploading...', null);
-                        validateImage(file);
-                        const compressedImage = await compressImage(file);
-                        const publicUrl = await uploadImageToSupabase(compressedImage);
-                        setSelectedFile(publicUrl);
-                        showNotification('Image loaded successfully', 3000);
-                    } catch {
-                        showNotification('Image upload failed', 3000);
-                    }
-                });
-        }
-    }, [setSelectedFile, showNotification]);
+        if (!imageSrc) return;
 
-    const handleRemoveFile = () => setSelectedFile(null);
+        fetch(imageSrc)
+            .then(res => res.blob())
+            .then(async blob => {
+                const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+                setShowCamera(false);
+                try {
+                    showNotification('Uploading photo...', null);
+                    const uploadResult = await processAndUploadFile(file);
+                    setSelectedFiles(prev => [...prev, uploadResult]);
+                    showNotification('Photo ready', 3000);
+                } catch (err) {
+                    console.error('[InputArea] handleCapture upload failed:', err);
+                    showNotification(err.message || 'Photo upload failed', 3000);
+                }
+            })
+            .catch(() => showNotification('Could not process photo', 3000));
+    }, [setSelectedFiles, showNotification]);
+
+    const handleRemoveFile = (index) => {
+        setSelectedFiles(prev => prev.filter((_, i) => i !== index));
+    };
     const isStandalone = !mode;
 
     const videoConstraints = { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } };
 
     return (
         <>
-            <ImageOverlay isOpen={showImageOverlay} imageUrl={previewUrl} onClose={() => setShowImageOverlay(false)} />
+            <ImageOverlay isOpen={showImageOverlay !== false} imageUrl={showImageOverlay} onClose={() => setShowImageOverlay(false)} />
             {/* ── CAMERA OVERLAY MODAL ── */}
             {showCamera && (
                 <div className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center">
@@ -507,7 +576,8 @@ const InputArea = ({
                         <div className="flex flex-col items-center justify-center w-full min-h-[140px]">
                             {activeToken ? (
                                 <LiveKitRoom
-                                    serverUrl="wss://demo-xv7lww7p.livekit.cloud"
+                                    // serverUrl="wss://demo-xv7lww7p.livekit.cloud"
+                                    serverUrl={activeServerUrl}
                                     token={activeToken}
                                     connect={true}
                                     audio={true} // Enabled by default to ensure mic is open on connect
@@ -544,72 +614,48 @@ const InputArea = ({
                             <div className="input-wrapper relative flex flex-col rounded-xl bg-[var(--bg-card)] transition-all duration-200 overflow-visible">
                                 <div className="absolute top-0 right-0 w-48 h-48 bg-[radial-gradient(circle_at_top_right,var(--brand-primary),transparent_70%)] opacity-[0.25] blur-2xl rounded-tr-xl pointer-events-none"></div>
 
-                                {selectedFile && previewUrl && (
-                                    <div className="px-3 pt-3 pb-1">
-                                        {typeof selectedFile === 'object' && selectedFile.type === 'pdf' ? (
-                                            <div className="relative inline-block group/preview">
-                                                <div
-                                                    className="relative h-24 min-w-[120px] max-w-[180px] bg-[var(--bg-tertiary)] rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm overflow-hidden flex items-center justify-center cursor-pointer hover:opacity-90 transition-opacity"
-                                                    onClick={() => setShowImageOverlay(true)}
-                                                >
-                                                    <Document
-                                                        file={previewUrl}
-                                                        loading={
-                                                            <div className="flex items-center justify-center p-4">
-                                                                <span className="animate-spin w-5 h-5 border-2 border-[var(--brand-primary)] border-t-transparent rounded-full" />
-                                                            </div>
-                                                        }
-                                                        error={
-                                                            <div className="flex flex-col items-center gap-1 p-2 text-center">
-                                                                <FaFilePdf className="text-red-500 text-lg" />
-                                                                <span className="text-[10px] text-red-500 font-bold uppercase">Render Failed</span>
-                                                            </div>
-                                                        }
-                                                    >
-                                                        <Page
-                                                            pageNumber={1}
-                                                            height={96}
-                                                            renderAnnotationLayer={false}
-                                                            renderTextLayer={false}
-                                                            className="pointer-events-none"
+                                {/* ── ATTACHMENTS PREVIEW INSIDE INPUT ── */}
+                                {previewUrls.length > 0 && (
+                                    <div className="px-3 pt-3 pb-1 flex flex-wrap gap-3 overflow-x-auto max-w-full scrollbar-none">
+                                        {previewUrls.map((p, idx) => (
+                                            <div key={idx} className="relative inline-block shrink-0">
+                                                {p.type === 'image' ? (
+                                                    <Tooltip content={p.name || p.filename || 'Image'} position="bottom">
+                                                        <img
+                                                            src={p.url}
+                                                            alt={p.name || p.filename || 'Selected attachment'}
+                                                            onClick={() => setShowImageOverlay(p.url)}
+                                                            className="w-28 h-20 object-cover rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
                                                         />
-                                                    </Document>
-
-                                                    {/* Overlay for PDF name on hover */}
-                                                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 opacity-0 group-hover/preview:opacity-100 transition-opacity pointer-events-none">
-                                                        <p className="text-[10px] text-white font-medium truncate">
-                                                            {selectedFile.name}
-                                                        </p>
-                                                    </div>
-                                                </div>
-
+                                                    </Tooltip>
+                                                ) : (
+                                                    <Tooltip content={p.name || p.filename || 'Document'} position="bottom">
+                                                        <div className="inline-flex items-center gap-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg px-3 py-2 min-w-[150px] max-w-[220px]">
+                                                            <span className="text-lg">📄</span>
+                                                            <div className="flex flex-col min-w-0">
+                                                                <span className="text-xs font-medium text-[var(--text-primary)] truncate">
+                                                                    {p.name || 'Document'}
+                                                                </span>
+                                                                {p.page_count && (
+                                                                    <span className="text-[10px] text-[var(--text-secondary)]">
+                                                                        {p.page_count} page{p.page_count > 1 ? 's' : ''}
+                                                                        {p.truncated ? ' (truncated)' : ''}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </Tooltip>
+                                                )}
                                                 <button
                                                     type="button"
-                                                    onClick={handleRemoveFile}
-                                                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all scale-0 group-hover/preview:scale-100 z-10"
-                                                    title="Remove PDF"
+                                                    onClick={() => handleRemoveFile(idx)}
+                                                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors z-10"
+                                                    title="Remove attachment"
                                                 >
-                                                    <FaXmark className="text-[8px]" />
+                                                    <FaXmark className="text-xs" />
                                                 </button>
                                             </div>
-                                        ) : (
-                                            <div className="relative inline-block group/preview">
-                                                <img
-                                                    src={previewUrl}
-                                                    alt="Selected"
-                                                    onClick={() => setShowImageOverlay(true)}
-                                                    className="h-24 max-w-[200px] object-cover rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={handleRemoveFile}
-                                                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-all scale-0 group-hover/preview:scale-100 z-10"
-                                                    title="Remove image"
-                                                >
-                                                    <FaXmark className="text-[8px]" />
-                                                </button>
-                                            </div>
-                                        )}
+                                        ))}
                                     </div>
                                 )}
 
@@ -641,14 +687,14 @@ const InputArea = ({
                                                     role="menuitem"
                                                     className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                                     onClick={() => {
-                                                        fileInputRef.current?.click();
+                                                        imageInputRef.current?.click();
                                                         setShowAttachMenu(false);
                                                     }}
                                                 >
-                                                    <FaImage className="text-[var(--brand-primary)] text-base" aria-hidden="true" />
+                                                    <FaImage className="text-[var(--brand-primary)] text-base" />
                                                     Upload Image
                                                 </button>
-                                                <div className="h-px bg-[var(--border-color)]" aria-hidden="true" />
+                                                <div className="h-px bg-[var(--border-color)]" />
                                                 <button
                                                     type="button"
                                                     role="menuitem"
@@ -658,10 +704,10 @@ const InputArea = ({
                                                         setShowAttachMenu(false);
                                                     }}
                                                 >
-                                                    <FaFilePdf className="text-[var(--brand-primary)] text-base" aria-hidden="true" />
+                                                    <FaFilePdf className="text-[var(--brand-primary)] text-base" />
                                                     Upload PDF
                                                 </button>
-                                                <div className="h-px bg-[var(--border-color)]" aria-hidden="true" />
+                                                <div className="h-px bg-[var(--border-color)]" />
                                                 <button
                                                     type="button"
                                                     role="menuitem"
@@ -678,20 +724,21 @@ const InputArea = ({
                                         )}
                                     </div>
 
-                                    {/* Hidden file input */}
                                     <input
                                         type="file"
-                                        ref={fileInputRef}
+                                        ref={imageInputRef}
                                         hidden
-                                        accept="image/jpeg,image/png,image/gif,image/webp"
+                                        multiple
+                                        accept="image/jpeg,image/png,image/webp"
                                         onChange={handleFileChange}
                                     />
                                     <input
                                         type="file"
                                         ref={pdfInputRef}
                                         hidden
+                                        multiple
                                         accept=".pdf,application/pdf"
-                                        onChange={handlePdfChange}
+                                        onChange={handleFileChange}
                                     />
 
                                     {/* Textarea */}
@@ -733,11 +780,11 @@ const InputArea = ({
                                                 type="button"
                                                 className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${disabled
                                                     ? 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed opacity-50'
-                                                    : (inputValue.trim() || selectedFile)
+                                                    : (inputValue.trim() || (selectedFiles && selectedFiles.length > 0))
                                                         ? 'bg-[var(--brand-primary)] text-white shadow-md hover:shadow-lg active:scale-95 cursor-pointer'
                                                         : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-not-allowed'}`}
                                                 onClick={handleSend}
-                                                disabled={disabled || (!inputValue.trim() && !selectedFile)}
+                                                disabled={disabled || (!inputValue.trim() && (!selectedFiles || selectedFiles.length === 0))}
                                                 aria-label="Send message"
                                             >
                                                 <FaPaperPlane className="text-sm ml-0.5" aria-hidden="true" />
