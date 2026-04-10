@@ -12,7 +12,7 @@ vi.mock('../services/api.config', () => ({
     default: {
         BASE_URL: 'http://test-host',
         WS_BASE_URL: 'ws://test-host',
-        endpoints: { CHAT_WS: '/ws/chat', THREAD: '/api/thread', UPLOAD: '/api/upload' },
+        endpoints: { CHAT_WS: '/ws/chat', SESSION: '/api/session', UPLOAD: '/api/upload' },
         SOCKET_IO_URL: 'https://test-socketio-host'
     }
 }));
@@ -83,9 +83,10 @@ describe('SharedWebSocketService', () => {
             expect(service.activeSessions.has('s1')).toBe(true);
         });
 
-        it('schedules a WebSocket connection', () => {
+        it('triggers an immediate WebSocket connection', () => {
+            const spy = vi.spyOn(service, '_createSocket');
             service.connectSession('s1');
-            expect(service.connectTimer).not.toBeNull();
+            expect(spy).toHaveBeenCalled();
         });
 
         it('does not create duplicate entries for the same session', () => {
@@ -103,17 +104,19 @@ describe('SharedWebSocketService', () => {
             expect(service.activeSessions.has('s1')).toBe(false);
         });
 
-        it('schedules disconnect when no sessions remain', () => {
+        it('disconnects immediately when no sessions remain', () => {
+            service.socket = mockSocket;
             service.connectSession('s1');
             service.disconnectSession('s1');
-            expect(service.disconnectTimer).not.toBeNull();
+            expect(mockDisconnect).toHaveBeenCalled();
         });
 
-        it('does not schedule disconnect when other sessions remain', () => {
+        it('does not disconnect when other sessions remain', () => {
+            service.socket = mockSocket;
             service.connectSession('s1');
             service.connectSession('s2');
             service.disconnectSession('s1');
-            expect(service.disconnectTimer).toBeNull();
+            expect(mockDisconnect).not.toHaveBeenCalled();
         });
     });
 
@@ -129,16 +132,7 @@ describe('SharedWebSocketService', () => {
         });
     });
 
-    describe('subscribeToErrors', () => {
-        it('adds an error callback and returns an unsubscribe function', () => {
-            const cb = vi.fn();
-            const unsub = service.subscribeToErrors(cb);
 
-            expect(service.errorSubscribers.has(cb)).toBe(true);
-            unsub();
-            expect(service.errorSubscribers.has(cb)).toBe(false);
-        });
-    });
 
     // ── _notifySubscribers ────────────────────────────────────────────────
     describe('_notifySubscribers', () => {
@@ -160,25 +154,39 @@ describe('SharedWebSocketService', () => {
         });
     });
 
-    // ── _notifyErrorSubscribers ───────────────────────────────────────────
-    describe('_notifyErrorSubscribers', () => {
-        it('calls all error subscribers with the error', () => {
-            const cb = vi.fn();
-            service.subscribeToErrors(cb);
-            service._notifyErrorSubscribers('Connection lost');
+    // ── _handleNetworkChange ──────────────────────────────────────────────
+    describe('_handleNetworkChange', () => {
+        it('calls disconnect() when browser goes offline', () => {
+            service.socket = mockSocket;
+            service._handleNetworkChange(false);
+            expect(mockDisconnect).toHaveBeenCalled();
+        });
 
-            expect(cb).toHaveBeenCalledWith('Connection lost');
+        it('calls connect() on existing socket when browser goes online', () => {
+            service.socket = mockSocket;
+            mockSocket.connected = false;
+            service.activeSessions.add('s1');
+            service._handleNetworkChange(true);
+            expect(mockConnect).toHaveBeenCalled();
+        });
+
+        it('triggers immediate connection if no socket exists when online', () => {
+            const spy = vi.spyOn(service, '_createSocket');
+            service.socket = null;
+            service.activeSessions.add('s1');
+            service._handleNetworkChange(true);
+            expect(spy).toHaveBeenCalled();
         });
     });
 
+
+
     // ── sendMessage ───────────────────────────────────────────────────────
     describe('sendMessage', () => {
-        it('queues message and returns true when socket is null (triggers reconnect)', () => {
+        it('returns false when socket is null (triggers reconnect)', () => {
             service.socket = null;
             const result = service.sendMessage('s1', { content: 'hello' });
-            // _sendViaWebSocket queues and calls _scheduleConnect when socket is null
-            expect(result).toBe(true);
-            expect(service.messageQueue.length).toBeGreaterThan(0);
+            expect(result).toBe(false);
         });
 
         it('emits gpt_query via socket.emit when connected', () => {
@@ -191,99 +199,36 @@ describe('SharedWebSocketService', () => {
             expect(mockEmit).toHaveBeenCalledWith('gpt_query', expect.objectContaining({ session_id: 's1' }));
         });
 
-        it('queues message when socket is not connected', () => {
+        it('returns false when socket is not connected', () => {
             mockSocket.connected = false;
             service.socket = mockSocket;
-            service.reconnectAttempts = 1;
             const payload = { question: 'hello' };
             const result = service.sendMessage('s1', payload);
 
-            expect(result).toBe(true);
-            expect(service.messageQueue.length).toBeGreaterThan(0);
+            expect(result).toBe(false);
             expect(mockEmit).not.toHaveBeenCalled();
         });
     });
 
-    // ── _flushMessageQueue ────────────────────────────────────────────────
-    describe('_flushMessageQueue', () => {
-        it('emits all queued messages when socket is connected', () => {
-            mockSocket.connected = true;
-            service.socket = mockSocket;
-            service.messageQueue = [{ q: 'msg1' }, { q: 'msg2' }];
 
-            service._flushMessageQueue();
-
-            expect(mockEmit).toHaveBeenCalledTimes(2);
-            expect(service.messageQueue).toHaveLength(0);
-        });
-
-        it('re-queues messages when socket is not connected', () => {
-            mockSocket.connected = false;
-            service.socket = mockSocket;
-            service.messageQueue = [{ q: 'msg1' }];
-
-            service._flushMessageQueue();
-
-            expect(service.messageQueue).toHaveLength(1);
-        });
-
-        it('does nothing when queue is empty', () => {
-            service.messageQueue = [];
-            service._flushMessageQueue();
-            expect(service.messageQueue).toHaveLength(0);
-        });
-    });
 
     // ── forceClose ────────────────────────────────────────────────────────
     describe('forceClose', () => {
-        it('clears all timers and resets state', () => {
+        it('resets state and disconnects socket', () => {
             service.connectSession('s1');
-            service.reconnectAttempts = 3;
-            service.connectTimer = setTimeout(() => { }, 1000);
-            service.disconnectTimer = setTimeout(() => { }, 1000);
             service.socket = mockSocket;
-
             service.forceClose();
 
             expect(service.isExplicitlyDisconnected).toBe(true);
             expect(service.activeSessions.size).toBe(0);
-            expect(service.reconnectAttempts).toBe(0);
-            expect(service.connectTimer).toBeNull();
-            expect(service.disconnectTimer).toBeNull();
-            expect(service.reconnectTimer).toBeNull();
             expect(service.socket).toBeNull();
             expect(mockDisconnect).toHaveBeenCalled();
         });
 
-        it('clears the message queue', () => {
-            service.messageQueue = ['m1', 'm2'];
-            service.forceClose();
-            expect(service.messageQueue).toHaveLength(0);
-        });
+
     });
 
-    // ── _handleReconnection ───────────────────────────────────────────────
-    describe('_handleReconnection', () => {
-        it('notifies error subscribers when max attempts reached', () => {
-            const cb = vi.fn();
-            service.subscribeToErrors(cb);
-            service.reconnectAttempts = 5;
 
-            service._handleReconnection();
-
-            expect(cb).toHaveBeenCalledWith(expect.stringContaining('Unable to connect'));
-        });
-
-        it('does not notify error subscribers when under max attempts', () => {
-            const cb = vi.fn();
-            service.subscribeToErrors(cb);
-            service.reconnectAttempts = 2;
-
-            service._handleReconnection();
-
-            expect(cb).not.toHaveBeenCalled();
-        });
-    });
 
     // ── _handleMessage ────────────────────────────────────────────────────
     describe('_handleMessage', () => {
@@ -327,13 +272,11 @@ describe('SharedWebSocketService', () => {
 
     // ── retryConnection ───────────────────────────────────────────────────
     describe('retryConnection', () => {
-        it('resets reconnect attempts and schedules connect', () => {
-            service.reconnectAttempts = 4;
+        it('triggers immediate connect', () => {
+            const spy = vi.spyOn(service, '_createSocket');
             service.activeSessions.add('s1');
-
             service.retryConnection();
-
-            expect(service.reconnectAttempts).toBe(0);
+            expect(spy).toHaveBeenCalled();
         });
     });
 
@@ -369,6 +312,19 @@ describe('SharedWebSocketService', () => {
             const callArgs = ioMock.mock.calls[0][1];
             expect(callArgs.auth).toBeUndefined();
             expect(callArgs.query).toBeUndefined();
+        });
+
+        it('calls connect() on existing disconnected socket instead of creating new one', () => {
+            const ioMock = vi.mocked(ioImport);
+            ioMock.mockClear();
+            service.socket = mockSocket;
+            mockSocket.connected = false;
+            service.activeSessions.add('s1');
+            
+            service._createSocket();
+
+            expect(ioMock).not.toHaveBeenCalled();
+            expect(mockConnect).toHaveBeenCalled();
         });
     });
 });

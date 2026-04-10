@@ -1,21 +1,26 @@
-import { useState, useEffect, useCallback } from 'react';
-import { v1 as uuidv1 } from 'uuid';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import ChatService from '../../../services/chat.service';
 
 const STORAGE_KEY_SESSIONS = 'CHATS_ACTIVE_SESSIONS';
 const STORAGE_KEY_ACTIVE_ID = 'CHATS_ACTIVE_SESSION_ID';
 
 /**
+ * Generates a session ID in the format chat_xxxxxxxxxxxx (12 hex chars).
+ */
+const generateSessionId = () => {
+    return 'chat_' + Math.random().toString(16).substring(2, 14).padEnd(12, '0');
+};
+
+/**
  * Creates a default session object structure.
  * 
- * @param {string} [id=uuidv1()] - Local unique identifier for the tab
+ * @param {string} [id=generateSessionId()] - Local unique identifier for the tab
  * @param {string} [title="New Chat"] - Display title for the tab
  * @returns {Object} A fresh session state object
  */
-const createSession = (id = uuidv1(), title = "New Chat") => ({
+const createSession = (id = generateSessionId(), title = "New Chat") => ({
     id,
     sessionId: null, // Backend session_id (used for API calls)
-    objectId: null,  // Backend MongoDB _id (used for history lookups)
     messages: [],
     hasMoreMessages: false,
     messagePage: 1,  // Track pagination locally
@@ -39,11 +44,16 @@ const createSession = (id = uuidv1(), title = "New Chat") => ({
  * Manages the multi-tab chat state, persistence to localStorage, 
  * and session lifecycle (create, load, switch, close).
  * 
- * @param {Array} threads - Cached thread list from the sidebar/history
+ * @param {Array} sessions - Cached session list from the sidebar/history
  * @param {Function} [closeMobileSidebar] - Callback to close sidebar on interaction
  * @returns {Object} Session state and stable action handlers
  */
-export const useChatSessions = (threads, closeMobileSidebar) => {
+export const useChatSessions = (sessions, closeMobileSidebar) => {
+    // ── CONCURRENCY GAURD ──
+    // Synchronous semaphore to prevent race conditions during rapid pagination triggers.
+    // React state updates (isLoadingMore) are asynchronous and can be bypassed by rapid scroll events.
+    const loadingRef = useRef(new Set());
+
     // ── PERSISTENCE INITIALIZATION ──
     const [activeSessions, setActiveSessions] = useState(() => {
         try {
@@ -149,14 +159,13 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
     }, [activeSessions, activeSessionId]);
 
     /**
-     * Loads an existing chat thread from history into a tab.
+     * Loads an existing chat session from history into a tab.
      */
-    const handleLoadChat = useCallback(async (thread) => {
+    const handleLoadChat = useCallback(async (session) => {
         try {
-            if (!thread) return;
+            if (!session) return;
 
-            const objectId = thread.objectId || thread._id;
-            const sessionId = thread.sessionId || objectId;
+            const sessionId = session.sessionId || session._id;
 
             // Check if already open in a tab
             const existing = activeSessions.find(s => s.id === sessionId);
@@ -172,7 +181,6 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
             // Create placeholder session with loading indicator
             const newSession = {
                 ...createSession(sessionId, "Loading..."),
-                objectId,
                 sessionId,
                 isThinking: true,
                 isNew: false
@@ -184,15 +192,14 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
 
             // Fetch actual messages from backend
             try {
-                const response = await ChatService.getThreadMessages(sessionId, 1);
+                const response = await ChatService.getSessionMessages(sessionId, 1);
                 setActiveSessions(prev => prev.map(s => s.id === sessionId ? {
                     ...s,
                     messages: response.messages || [],
                     hasMoreMessages: response.hasMore || false,
                     messagePage: 1,
-                    title: thread?.title || "Chat",
+                    title: session?.title || "Chat",
                     sessionId: sessionId,
-                    objectId: objectId,
                     isThinking: false
                 } : s));
             } catch (error) {
@@ -214,12 +221,16 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
     const loadMoreMessages = useCallback(async () => {
         if (!activeSession || activeSession.isLoadingMore || !activeSession.hasMoreMessages) return;
 
+        // Synchronous check to block concurrent executions within the same event loop
+        if (loadingRef.current.has(activeSession.id)) return;
+        loadingRef.current.add(activeSession.id);
+
         updateActiveSession({ isLoadingMore: true });
 
         try {
             const nextPage = (activeSession.messagePage || 1) + 1;
-            const detailId = activeSession.sessionId || activeSession.objectId || activeSessionId;
-            const response = await ChatService.getThreadMessages(detailId, nextPage);
+            const detailId = activeSession.sessionId || activeSessionId;
+            const response = await ChatService.getSessionMessages(detailId, nextPage);
 
             if (response && response.messages) {
                 setActiveSessions(prev => prev.map(s => s.id === activeSessionId ? {
@@ -235,6 +246,9 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
         } catch (error) {
             console.error("[useChatSessions] Load more error:", error);
             updateActiveSession({ isLoadingMore: false });
+        } finally {
+            // Ensure the lock is ALWAYS released, even on error
+            loadingRef.current.delete(activeSession.id);
         }
     }, [activeSession, activeSessionId, updateActiveSession]);
 
@@ -247,21 +261,6 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
                 ? { ...s, scrollPosition: scrollTop, isPinnedToBottom: isPinned }
                 : s
         ));
-    }, []);
-
-    /**
-     * Promotes a temporary local session to a backend-persisted session.
-     * Called when the first message is successfully processed by the server.
-     */
-    const promoteSession = useCallback((oldId, newId) => {
-        if (!oldId || !newId || oldId === newId) return;
-
-        setActiveSessions(prev => prev.map(s =>
-            s.id === oldId ? { ...s, id: newId, sessionId: newId, isNew: false } : s
-        ));
-        setActiveSessionId(prev => prev === oldId ? newId : prev);
-
-        localStorage.setItem(STORAGE_KEY_ACTIVE_ID, newId);
     }, []);
 
     return {
@@ -277,7 +276,6 @@ export const useChatSessions = (threads, closeMobileSidebar) => {
         handleTabClose,
         handleLoadChat,
         loadMoreMessages,
-        saveScrollPosition,
-        promoteSession
+        saveScrollPosition
     };
 };

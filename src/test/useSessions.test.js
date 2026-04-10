@@ -1,20 +1,20 @@
 /**
- * Tests for useThreads hook
- * Covers: initial fetch, loadMore, pagination, deleteThread, error handling
+ * Tests for useSessions hook
+ * Covers: initial fetch, loadMore, pagination, deleteSession, error handling
  */
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 // ─── Mock ChatService ─────────────────────────────────────────────────────────
-const { mockGetAllThreads, mockDeleteThread } = vi.hoisted(() => ({
-    mockGetAllThreads: vi.fn(),
-    mockDeleteThread: vi.fn(),
+const { mockGetAllSessions, mockDeleteSession } = vi.hoisted(() => ({
+    mockGetAllSessions: vi.fn(),
+    mockDeleteSession: vi.fn(),
 }));
 
 vi.mock('../services/chat.service', () => ({
     default: {
-        getAllThreads: mockGetAllThreads,
-        deleteThread: mockDeleteThread,
+        getAllSessions: mockGetAllSessions,
+        deleteSession: mockDeleteSession,
     },
 }));
 
@@ -22,64 +22,62 @@ vi.mock('../utils/logger', () => ({
     default: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
-import { useThreads } from '../features/chat/hooks/useThreads';
+import { useSessions } from '../features/chat/hooks/useSessions';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const makeThreads = (count, startId = 1) =>
+const makeSessions = (count, startId = 1) =>
     Array.from({ length: count }, (_, i) => ({
         sessionId: sessionIdPrefix + (startId + i),
-        objectId: 'mongo-' + (startId + i),
-        title: `Thread ${startId + i}`,
+        title: `Session ${startId + i}`,
     }));
 
 const sessionIdPrefix = 'sess-';
 
-describe('useThreads', () => {
+describe('useSessions', () => {
     beforeEach(() => {
         vi.resetAllMocks();
     });
 
     // ── Initial fetch ─────────────────────────────────────────────────────
     describe('initial fetch', () => {
-        it('fetches threads on mount and sets threads state', async () => {
-            const threads = makeThreads(3);
-            mockGetAllThreads.mockResolvedValueOnce({ threads, hasMore: false });
+        it('fetches sessions on mount and sets sessions state', async () => {
+            const sessionsData = makeSessions(3);
+            mockGetAllSessions.mockResolvedValueOnce({ sessions: sessionsData, hasMore: false });
 
-            const { result } = renderHook(() => useThreads());
+            const { result } = renderHook(() => useSessions());
 
             await waitFor(() => {
                 expect(result.current.isLoading).toBe(false);
             });
 
-            expect(result.current.threads).toEqual(threads);
-            expect(mockGetAllThreads).toHaveBeenCalledWith(0, 10);
+            expect(result.current.sessions).toEqual(sessionsData);
+            expect(mockGetAllSessions).toHaveBeenCalledWith(0, 10);
         });
 
-        it('sets fetchError on failure', async () => {
-            mockGetAllThreads.mockRejectedValueOnce(new Error('Network error'));
+        it('sets sessions to empty on failure', async () => {
+            mockGetAllSessions.mockRejectedValueOnce(new Error('Network error'));
 
-            const { result } = renderHook(() => useThreads());
+            const { result } = renderHook(() => useSessions());
 
             await waitFor(() => {
                 expect(result.current.isLoading).toBe(false);
             });
 
-            expect(result.current.fetchError).toBe('Failed to load chat history');
-            expect(result.current.threads).toEqual([]);
+            expect(result.current.sessions).toEqual([]);
         });
     });
 
     // ── loadMore ──────────────────────────────────────────────────────────
     describe('loadMore', () => {
-        it('appends new threads without duplicates', async () => {
+        it('appends new sessions without duplicates', async () => {
             // First load: full page (20 items)
-            const firstPage = makeThreads(20);
-            mockGetAllThreads.mockResolvedValueOnce({ threads: firstPage, hasMore: true });
+            const firstPage = makeSessions(20);
+            mockGetAllSessions.mockResolvedValueOnce({ sessions: firstPage, hasMore: true });
             // Page 2 eager load
-            mockGetAllThreads.mockResolvedValueOnce({ threads: [], hasMore: true });
+            mockGetAllSessions.mockResolvedValueOnce({ sessions: [], hasMore: true });
 
-            const { result } = renderHook(() => useThreads());
+            const { result } = renderHook(() => useSessions());
 
             await waitFor(() => {
                 expect(result.current.isLoading).toBe(false);
@@ -88,8 +86,8 @@ describe('useThreads', () => {
             expect(result.current.hasMore).toBe(true);
 
             // Load more: 5 items
-            const secondPage = makeThreads(5, 21);
-            mockGetAllThreads.mockResolvedValueOnce({ threads: secondPage, hasMore: false });
+            const secondPage = makeSessions(5, 21);
+            mockGetAllSessions.mockResolvedValueOnce({ sessions: secondPage, hasMore: false });
 
             await act(async () => {
                 result.current.loadMore();
@@ -99,14 +97,14 @@ describe('useThreads', () => {
                 expect(result.current.isFetchingMore).toBe(false);
             });
 
-            expect(result.current.threads).toHaveLength(25);
+            expect(result.current.sessions).toHaveLength(25);
             expect(result.current.hasMore).toBe(false);
         });
 
         it('does not fetch when already fetching more', async () => {
-            mockGetAllThreads.mockResolvedValue({ threads: makeThreads(20), hasMore: true });
+            mockGetAllSessions.mockResolvedValue({ sessions: makeSessions(20), hasMore: true });
 
-            const { result } = renderHook(() => useThreads());
+            const { result } = renderHook(() => useSessions());
 
             await waitFor(() => {
                 expect(result.current.isLoading).toBe(false);
@@ -114,7 +112,7 @@ describe('useThreads', () => {
 
             // Start a slow second fetch
             let resolveFetch;
-            mockGetAllThreads.mockImplementationOnce(() => new Promise(r => { resolveFetch = r; }));
+            mockGetAllSessions.mockImplementationOnce(() => new Promise(r => { resolveFetch = r; }));
 
             act(() => { result.current.loadMore(); });
 
@@ -122,19 +120,19 @@ describe('useThreads', () => {
             act(() => { result.current.loadMore(); });
 
             // Should only have called once for the load more after initial eager loads
-            expect(mockGetAllThreads).toHaveBeenCalledTimes(3); 
+            expect(mockGetAllSessions).toHaveBeenCalledTimes(3); 
 
             // Clean up
-            resolveFetch(makeThreads(5, 21));
+            resolveFetch({ sessions: makeSessions(5, 21), hasMore: false });
             await waitFor(() => {
                 expect(result.current.isFetchingMore).toBe(false);
             });
         });
 
         it('does not fetch when hasMore is false', async () => {
-            mockGetAllThreads.mockResolvedValueOnce({ threads: makeThreads(5), hasMore: false });
+            mockGetAllSessions.mockResolvedValueOnce({ sessions: makeSessions(5), hasMore: false });
 
-            const { result } = renderHook(() => useThreads());
+            const { result } = renderHook(() => useSessions());
 
             await waitFor(() => {
                 expect(result.current.isLoading).toBe(false);
@@ -144,20 +142,20 @@ describe('useThreads', () => {
 
             act(() => { result.current.loadMore(); });
 
-            // Should not have called getAllThreads again beyond initial load
-            expect(mockGetAllThreads).toHaveBeenCalledTimes(1);
+            // Should not have called getAllSessions again beyond initial load
+            expect(mockGetAllSessions).toHaveBeenCalledTimes(1);
         });
 
-        it('sets fetchError on loadMore failure', async () => {
-            mockGetAllThreads.mockResolvedValue({ threads: makeThreads(20), hasMore: true });
+        it('handles loadMore failure gracefully', async () => {
+            mockGetAllSessions.mockResolvedValue({ sessions: makeSessions(20), hasMore: true });
 
-            const { result } = renderHook(() => useThreads());
+            const { result } = renderHook(() => useSessions());
 
             await waitFor(() => {
                 expect(result.current.isLoading).toBe(false);
             });
 
-            mockGetAllThreads.mockRejectedValueOnce(new Error('fail'));
+            mockGetAllSessions.mockRejectedValueOnce(new Error('fail'));
 
             await act(async () => {
                 result.current.loadMore();
@@ -166,19 +164,17 @@ describe('useThreads', () => {
             await waitFor(() => {
                 expect(result.current.isFetchingMore).toBe(false);
             });
-
-            expect(result.current.fetchError).toBe('Failed to load more chat history');
         });
     });
 
-    // ── deleteThread ──────────────────────────────────────────────────────
-    describe('deleteThread', () => {
-        it('removes the thread from state on success', async () => {
-            const threads = makeThreads(3);
-            mockGetAllThreads.mockResolvedValue({ threads, hasMore: false });
-            mockDeleteThread.mockResolvedValue(true);
+    // ── deleteSession ─────────────────────────────────────────────────────
+    describe('deleteSession', () => {
+        it('removes the session from state on success', async () => {
+            const sessionsData = makeSessions(3);
+            mockGetAllSessions.mockResolvedValue({ sessions: sessionsData, hasMore: false });
+            mockDeleteSession.mockResolvedValue(true);
 
-            const { result } = renderHook(() => useThreads());
+            const { result } = renderHook(() => useSessions());
 
             await waitFor(() => {
                 expect(result.current.isLoading).toBe(false);
@@ -186,20 +182,20 @@ describe('useThreads', () => {
 
             let success;
             await act(async () => {
-                success = await result.current.deleteThread('sess-2');
+                success = await result.current.deleteSession('sess-2');
             });
 
             expect(success).toBe(true);
-            expect(result.current.threads).toHaveLength(2);
-            expect(result.current.threads.some(t => t.sessionId === 'sess-2')).toBe(false);
-            expect(mockDeleteThread).toHaveBeenCalledWith('mongo-2');
+            expect(result.current.sessions).toHaveLength(2);
+            expect(result.current.sessions.some(s => s.sessionId === 'sess-2')).toBe(false);
+            expect(mockDeleteSession).toHaveBeenCalledWith('sess-2');
         });
 
         it('returns false on failure without removing', async () => {
-            mockGetAllThreads.mockResolvedValue({ threads: makeThreads(3), hasMore: false });
-            mockDeleteThread.mockRejectedValue(new Error('Forbidden'));
+            mockGetAllSessions.mockResolvedValue({ sessions: makeSessions(3), hasMore: false });
+            mockDeleteSession.mockRejectedValue(new Error('Forbidden'));
 
-            const { result } = renderHook(() => useThreads());
+            const { result } = renderHook(() => useSessions());
 
             await waitFor(() => {
                 expect(result.current.isLoading).toBe(false);
@@ -207,17 +203,17 @@ describe('useThreads', () => {
 
             let success;
             await act(async () => {
-                success = await result.current.deleteThread('sess-1');
+                success = await result.current.deleteSession('sess-1');
             });
 
             expect(success).toBe(false);
-            expect(result.current.threads).toHaveLength(3);
+            expect(result.current.sessions).toHaveLength(3);
         });
 
         it('returns false for null sessionId', async () => {
-            mockGetAllThreads.mockResolvedValue({ threads: [], hasMore: false });
+            mockGetAllSessions.mockResolvedValue({ sessions: [], hasMore: false });
 
-            const { result } = renderHook(() => useThreads());
+            const { result } = renderHook(() => useSessions());
 
             await waitFor(() => {
                 expect(result.current.isLoading).toBe(false);
@@ -225,7 +221,7 @@ describe('useThreads', () => {
 
             let success;
             await act(async () => {
-                success = await result.current.deleteThread(null);
+                success = await result.current.deleteSession(null);
             });
 
             expect(success).toBe(false);

@@ -15,12 +15,12 @@ vi.mock('uuid', () => ({
 
 // ─── Mock ChatService ─────────────────────────────────────────────────────────
 // vi.hoisted() ensures the variable is created before vi.mock() hoisting runs.
-const { mockGetThreadMessages } = vi.hoisted(() => ({
-    mockGetThreadMessages: vi.fn(),
+const { mockGetSessionMessages } = vi.hoisted(() => ({
+    mockGetSessionMessages: vi.fn(),
 }));
 
 vi.mock('../services/chat.service', () => ({
-    default: { getThreadMessages: mockGetThreadMessages },
+    default: { getSessionMessages: mockGetSessionMessages },
 }));
 
 // ─── Mock logger (suppress noise) ────────────────────────────────────────────
@@ -101,30 +101,30 @@ describe('useChatSessions', () => {
     describe('handleLoadChat', () => {
         it('fetches messages and updates the session on success', async () => {
             const fakeMessages = [{ role: 'user', content: 'hello' }];
-            mockGetThreadMessages.mockResolvedValue({ messages: fakeMessages, hasMore: false });
+            mockGetSessionMessages.mockResolvedValue({ messages: fakeMessages, hasMore: false });
 
-            const thread = { sessionId: 'sess-abc', objectId: 'mongo-abc', title: 'My Thread' };
+            const session = { sessionId: 'sess-abc', title: 'My Session' };
             const { result } = renderHook(() => useChatSessions());
 
             await act(async () => {
-                await result.current.handleLoadChat(thread);
+                await result.current.handleLoadChat(session);
             });
 
-            const session = result.current.activeSessions.find(s => s.id === 'sess-abc');
-            expect(session).toBeDefined();
-            expect(session.messages).toEqual(fakeMessages);
-            expect(session.title).toBe('My Thread');
-            expect(session.isThinking).toBe(false);
-            expect(mockGetThreadMessages).toHaveBeenCalledWith('mongo-abc', 1);
+            const activeSession = result.current.activeSessions.find(s => s.id === 'sess-abc');
+            expect(activeSession).toBeDefined();
+            expect(activeSession.messages).toEqual(fakeMessages);
+            expect(activeSession.title).toBe('My Session');
+            expect(activeSession.isThinking).toBe(false);
+            expect(mockGetSessionMessages).toHaveBeenCalledWith('sess-abc', 1);
         });
 
         it('sets title to "Failed to load" when fetch throws', async () => {
-            mockGetThreadMessages.mockRejectedValue(new Error('Network error'));
+            mockGetSessionMessages.mockRejectedValue(new Error('Network error'));
 
             const { result } = renderHook(() => useChatSessions());
 
             await act(async () => {
-                await result.current.handleLoadChat({ sessionId: 'sess-xyz', objectId: 'mongo-xyz' });
+                await result.current.handleLoadChat({ sessionId: 'sess-xyz' });
             });
 
             const session = result.current.activeSessions.find(s => s.id === 'sess-xyz');
@@ -146,10 +146,10 @@ describe('useChatSessions', () => {
             act(() => result.current.handleNewChat());
 
             await act(async () => {
-                await result.current.handleLoadChat({ sessionId: existingId, objectId: 'some-objectId' });
+                await result.current.handleLoadChat({ sessionId: existingId });
             });
 
-            expect(mockGetThreadMessages).not.toHaveBeenCalled();
+            expect(mockGetSessionMessages).not.toHaveBeenCalled();
             expect(result.current.activeSessionId).toBe(existingId);
         });
 

@@ -35,7 +35,7 @@ const MessageContent = ({ content, onLinkClick }) => {
                 <a
                     href={href}
                     target={isExternal ? '_blank' : undefined}
-                    rel={isExternal ? 'noopener noreferrer' : undefined} 
+                    rel={isExternal ? 'noopener noreferrer' : undefined}
                     onClick={(e) => {
                         if (onLinkClick && href && !isMailto && !isTel) {
                             e.preventDefault();
@@ -49,14 +49,14 @@ const MessageContent = ({ content, onLinkClick }) => {
             );
         },
 
-        // Custom Image Handler
+        // Custom Image Handler - ✅ FIXED: removed stray backtick and brace
         img: ({ src, alt, ...rest }) => (
             <button
                 type="button"
                 className="block w-full text-left border-none bg-transparent p-0 mt-2 mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] rounded-md"
                 onClick={() => setPreviewImage(src)}
-                aria-label={`View full size image: ${alt || ''}`}
                 title="Click to expand"
+                aria-label="Expand image"
             >
                 <img
                     src={src}
@@ -87,7 +87,7 @@ const MessageContent = ({ content, onLinkClick }) => {
                         checked={props.checked || false}
                         disabled // Force checkboxes to be visually read-only in the chat log
                         style={{ marginRight: '0.5em', cursor: 'not-allowed' }}
-                        aria-label="Task list item"
+                        aria-label="Completed step (read-only)"
                     />
                 );
             }
@@ -103,11 +103,11 @@ const MessageContent = ({ content, onLinkClick }) => {
                     {content}
                 </ReactMarkdown>
             </div>
-            
-            <ImageOverlay 
-                isOpen={!!previewImage} 
-                imageUrl={previewImage} 
-                onClose={() => setPreviewImage(null)} 
+
+            <ImageOverlay
+                isOpen={!!previewImage}
+                imageUrl={previewImage}
+                onClose={() => setPreviewImage(null)}
             />
         </div>
     );

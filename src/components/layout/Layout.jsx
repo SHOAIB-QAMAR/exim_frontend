@@ -3,20 +3,21 @@ import React, { useState, useEffect, useCallback } from 'react';
 // Components
 import Sidebar from './Sidebar';
 import Header from './Header';
-import FAQ from '../../features/faq/FAQ';
-import SearchPanel from '../../features/search/SearchPanel';
 import ChatTabs from '../../features/chat/components/ChatTabs';
-import ThreadSwitcher from './ThreadSwitcher';
-import ContextPanel from '../../features/context_panel/ContextPanel';
+import SessionSwitcher from './SessionSwitcher';
 import WelcomeScreen from '../../features/chat/components/WelcomeScreen';
 import ChatMessages from '../../features/chat/components/ChatMessages';
 import LanguagePicker from '../../features/chat/components/LanguagePicker';
+
+const FAQ = React.lazy(() => import('../../features/faq/FAQ'));
+const SearchPanel = React.lazy(() => import('../../features/search/SearchPanel'));
+const ContextPanel = React.lazy(() => import('../../features/context_panel/ContextPanel'));
 
 // Context
 import { useUI } from '../../providers/UIContext';
 
 // Hooks
-import { useThreads } from '../../features/chat/hooks/useThreads';
+import { useSessions } from '../../features/chat/hooks/useSessions';
 import { useChatSessions } from '../../features/chat/hooks/useChatSessions';
 import { useWebSocket } from '../../features/chat/hooks/useWebSocket';
 import { useThinkingTimeout } from '../../features/chat/hooks/useThinkingTimeout';
@@ -28,7 +29,7 @@ import useKeyboardHeight from '../../hooks/useKeyboardHeight';
 
 /**
  * The main layout coordinator for the EximGPT application.
- * Manages UI state (sidebars, panels), data fetching (threads, sessions), 
+ * Manages UI state (sidebars, panels), data fetching (sessions), 
  * and orchestration between Header, Sidebar, Chat Area, and Context Panels.
  */
 const Layout = () => {
@@ -37,7 +38,7 @@ const Layout = () => {
         sidebarCollapsed, toggleSidebar,
         mobileSidebarOpen, toggleMobileSidebar, closeMobileSidebar,
         searchPanelOpen, openSearchPanel, closeSearchPanel,
-        threadSwitcherOpen, setThreadSwitcherOpen,
+        sessionSwitcherOpen, setSessionSwitcherOpen,
         showFAQ, setShowFAQ, openFAQ,
         langOpen, setLangOpen
     } = useUI();
@@ -56,7 +57,7 @@ const Layout = () => {
     useKeyboardHeight();
 
     // ==================== DATA HOOKS ====================
-    const { threads, fetchThreads, deleteThread, moveThreadToTop, isLoading: isThreadsLoading, fetchError, loadMore, hasMore, isFetchingMore } = useThreads();
+    const { sessions, fetchSessions, deleteSession, moveSessionToTop, isLoading: isSessionsLoading, loadMore, hasMore, isFetchingMore } = useSessions();
 
     const {
         activeSessions,
@@ -70,8 +71,7 @@ const Layout = () => {
         handleTabClose,
         handleLoadChat,
         loadMoreMessages,
-        saveScrollPosition,
-        promoteSession
+        saveScrollPosition
     } = useChatSessions(closeMobileSidebar);
 
     // ==================== PANEL HANDLERS ====================
@@ -87,7 +87,7 @@ const Layout = () => {
     const [focusInput, setFocusInput] = useState(false);
 
     // ==================== WEBSOCKET ====================
-    const { sendMessage } = useWebSocket(activeSessions, setActiveSessions, activeSessionId, fetchThreads, promoteSession, moveThreadToTop);
+    const { sendMessage } = useWebSocket(activeSessions, setActiveSessions, activeSessionId, fetchSessions, moveSessionToTop);
 
     const isAnyTabLoading = activeSessions.some(s => s.isThinking || s.messages.some(m => m.isStreaming));
 
@@ -101,7 +101,7 @@ const Layout = () => {
         handleFeatureClick,
         handleSearchResultClick,
         handleSearchStartChat,
-        handleDeleteChat
+        handleDeleteSession
     } = useChatActions({
         activeSession,
         activeSessionId,
@@ -109,7 +109,7 @@ const Layout = () => {
         updateActiveSession,
         sendMessage,
         selectedLang,
-        deleteThread,
+        deleteSession,
         activeSessions,
         handleTabClose,
         handleNewChat,
@@ -130,7 +130,7 @@ const Layout = () => {
     // When switching tabs, state is preserved. Mic auto-closes only when another tab activates mic.
     const onTabClick = (id) => { handleTabClick(id); };
     const onNewChatWithScroll = () => { handleNewChat(); };
-    const onLoadChatWithScroll = (thread) => { handleLoadChat(thread); };
+    const onLoadChatWithScroll = (session) => { handleLoadChat(session); };
 
     const handleFAQClick = () => { openFAQ(); };
 
@@ -151,7 +151,7 @@ const Layout = () => {
 
     // ==================== RENDER ====================
     return (
-        <div className="app-container flex h-[100dvh] w-full bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300 overflow-hidden font-sans">
+        <div className="app-container relative flex h-[100dvh] w-full bg-[var(--bg-primary)] text-[var(--text-primary)] transition-colors duration-300 overflow-hidden font-sans">
             {/* Background Gradient */}
             <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-[radial-gradient(circle_at_center,var(--brand-primary),transparent_70%)] opacity-[0.15] blur-3xl pointer-events-none z-0"></div>
 
@@ -164,14 +164,12 @@ const Layout = () => {
                 onSearchClick={openSearchPanel}
                 onNewChat={onNewChatWithScroll}
                 onLoadChat={onLoadChatWithScroll}
-                onDeleteChat={handleDeleteChat}
-                threads={threads}
+                onDeleteSession={handleDeleteSession}
+                sessions={sessions}
                 activeSessionId={activeSessionId}
                 onFAQClick={handleFAQClick}
                 showFAQ={showFAQ}
-                isLoading={isThreadsLoading}
-                fetchError={fetchError}
-                onRetryFetch={fetchThreads}
+                isLoading={isSessionsLoading}
                 loadMore={loadMore}
                 hasMore={hasMore}
                 isFetchingMore={isFetchingMore}
@@ -184,7 +182,7 @@ const Layout = () => {
                     toggleMobileSidebar={toggleMobileSidebar}
                     selectedLang={selectedLang}
                     onToggleLang={() => setLangOpen(!langOpen)}
-                    onOpenThreadSwitcher={() => setThreadSwitcherOpen(true)}
+                    onOpenThreadSwitcher={() => setSessionSwitcherOpen(true)}
                     onNewChat={onNewChatWithScroll}
                 />
 
@@ -204,12 +202,12 @@ const Layout = () => {
                     <div className={`flex-1 overflow-hidden w-full h-full relative ${(searchPanelOpen || showFAQ) ? 'blur-[16px] pointer-events-none' : ''}`}>
                         {activeSessions.map((session) => {
                             const isActive = session.id === activeSessionId;
-                            
+
                             const isVoiceMode = session.isVoiceMode || false;
                             const liveVoiceMessages = session.liveVoiceMessages || [];
-                            
+
                             const setSessionInputValue = (val) => { updateSession(session.id, { inputValue: val }); };
-                            
+
                             const setSessionSelectedFiles = (updater) => {
                                 if (typeof updater === 'function') {
                                     setActiveSessions(prev => prev.map(s => s.id === session.id
@@ -224,7 +222,7 @@ const Layout = () => {
                             const setSessionVoiceMode = (val) => {
                                 const newValue = typeof val === 'function' ? val(session.isVoiceMode || false) : val;
                                 if (newValue === true) {
-                                    setActiveSessions(prev => prev.map(s => 
+                                    setActiveSessions(prev => prev.map(s =>
                                         s.id === session.id
                                             ? { ...s, isVoiceMode: true }
                                             : { ...s, isVoiceMode: false, liveVoiceMessages: [] }
@@ -297,34 +295,40 @@ const Layout = () => {
                                 className="w-full max-w-4xl bg-[var(--bg-card)] rounded-2xl border border-[var(--border-color)] shadow-2xl p-6 overflow-y-auto max-h-full"
                                 onClick={(e) => e.stopPropagation()}
                             >
-                                <FAQ
-                                    onFeatureClick={(text) => { handleFeatureClick(text); setShowFAQ(false); }}
-                                    onClose={() => setShowFAQ(false)}
-                                />
+                                <React.Suspense fallback={<div className="flex items-center justify-center h-64"><span className="animate-spin w-8 h-8 border-4 border-[var(--brand-primary)] border-t-transparent rounded-full" /></div>}>
+                                    <FAQ
+                                        onFeatureClick={(text) => { handleFeatureClick(text); setShowFAQ(false); }}
+                                        onClose={() => setShowFAQ(false)}
+                                    />
+                                </React.Suspense>
                             </div>
                         </div>
                     )}
 
                     {/* Search Panel Overlay (Gemini Style) */}
                     {searchPanelOpen && (
-                        <SearchPanel
-                            isOpen={searchPanelOpen}
-                            onClose={closeSearchPanel}
-                            onResultClick={handleSearchResultClick}
-                            onStartChat={handleSearchStartChat}
-                            onLoadChat={onLoadChatWithScroll}
-                            threads={threads}
-                        />
+                        <React.Suspense fallback={null}>
+                            <SearchPanel
+                                isOpen={searchPanelOpen}
+                                onClose={closeSearchPanel}
+                                onResultClick={handleSearchResultClick}
+                                onStartChat={handleSearchStartChat}
+                                onLoadChat={onLoadChatWithScroll}
+                                sessions={sessions}
+                            />
+                        </React.Suspense>
                     )}
                 </div>
             </div>
 
             {/* Context Panel */}
-            <ContextPanel
-                isOpen={activeSession.contextPanel?.open || false}
-                onClose={closeContextPanel}
-                data={activeSession.contextPanel?.data || null}
-            />
+            <React.Suspense fallback={null}>
+                <ContextPanel
+                    isOpen={activeSession.contextPanel?.open || false}
+                    onClose={closeContextPanel}
+                    data={activeSession.contextPanel?.data || null}
+                />
+            </React.Suspense>
 
             {/* Language Picker */}
             {langOpen && (
@@ -335,10 +339,10 @@ const Layout = () => {
                 />
             )}
 
-            {/* Thread Switcher (Mobile) */}
-            <ThreadSwitcher
-                isOpen={threadSwitcherOpen}
-                onClose={() => setThreadSwitcherOpen(false)}
+            {/* Session Switcher (Mobile) */}
+            <SessionSwitcher
+                isOpen={sessionSwitcherOpen}
+                onClose={() => setSessionSwitcherOpen(false)}
                 sessions={activeSessions}
                 activeSessionId={activeSessionId}
                 onSelectSession={onTabClick}

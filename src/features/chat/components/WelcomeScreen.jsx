@@ -43,7 +43,7 @@ const WelcomeScreen = ({
 }) => (
     <main
         className="relative flex flex-col h-full bg-gradient-to-b from-[var(--bg-secondary)] via-[var(--bg-secondary)] to-[var(--bg-tertiary)]/30"
-        aria-label="Welcome screen"
+       
     >
         <div className="flex-1 flex flex-col justify-center items-center overflow-y-auto custom-scrollbar w-full px-4 pb-4">
             <div className="flex flex-col items-center w-full max-w-[1000px]">

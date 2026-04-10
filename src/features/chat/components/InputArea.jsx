@@ -1,6 +1,5 @@
-import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { Document, Page } from 'react-pdf';
-import Webcam from 'react-webcam';
+import React, { useRef, useMemo, useState, useEffect, useCallback, lazy, Suspense } from 'react';
+const CameraOverlay = lazy(() => import('./CameraOverlay'));
 import Tooltip from '../../../components/common/Tooltip';
 import ImageOverlay from '../../../components/common/ImageOverlay';
 import { useUI } from '../../../providers/UIContext';
@@ -288,31 +287,18 @@ const InputArea = ({
     const textareaRef = useRef(null);
     const imageInputRef = useRef(null);
     const pdfInputRef = useRef(null);
-    const webcamRef = useRef(null);
     const menuRef = useRef(null);
 
-    const { sidebarCollapsed } = useUI();
+    const { sidebarCollapsed, notification, showNotification, isOffline } = useUI();
     const [showAttachMenu, setShowAttachMenu] = useState(false);
     const [showCamera, setShowCamera] = useState(false);
-    const [facingMode, setFacingMode] = useState('environment');
     const [showImageOverlay, setShowImageOverlay] = useState(false);
-
-    const [notification, setNotification] = useState(null);
-    const notificationTimer = useRef(null);
 
     // --- LiveKit Component State ---
     const [activeToken, setActiveToken] = useState(null);
     const [activeServerUrl, setActiveServerUrl] = useState(null);  // NEW
     const isFetchingRef = useRef(false);
     const [soundEnabled, setSoundEnabled] = useState(true);
-
-    const showNotification = useCallback((msg, duration = null) => {
-        setNotification(msg);
-        if (notificationTimer.current) clearTimeout(notificationTimer.current);
-        if (duration) {
-            notificationTimer.current = setTimeout(() => setNotification(null), duration);
-        }
-    }, []);
 
     // Focus handling
     useEffect(() => {
@@ -365,7 +351,6 @@ const InputArea = ({
         // Find URLs that were in previous selectedFiles but not in current
         // For simplicity, we can rely on the cleanup above or more specific tracking if needed
     }, [selectedFiles]);
-
 
     // --- Voice Transition Logic ---
     const fetchAndConnect = useCallback(async () => {
@@ -470,8 +455,7 @@ const InputArea = ({
     };
 
 
-    const handleCapture = useCallback(() => {
-        const imageSrc = webcamRef.current?.getScreenshot();
+    const handleCapture = useCallback((imageSrc) => {
         if (!imageSrc) return;
 
         fetch(imageSrc)
@@ -497,50 +481,17 @@ const InputArea = ({
     };
     const isStandalone = !mode;
 
-    const videoConstraints = { facingMode: facingMode, width: { ideal: 1280 }, height: { ideal: 720 } };
-
     return (
         <>
             <ImageOverlay isOpen={showImageOverlay !== false} imageUrl={showImageOverlay} onClose={() => setShowImageOverlay(false)} />
             {/* ── CAMERA OVERLAY MODAL ── */}
             {showCamera && (
-                <div className="fixed inset-0 z-[9999] bg-black flex flex-col items-center justify-center">
-                    <Webcam
-                        ref={webcamRef}
-                        audio={false}
-                        screenshotFormat="image/jpeg"
-                        videoConstraints={videoConstraints}
-                        className="w-full h-full object-cover"
-                        screenshotQuality={0.85}
+                <Suspense fallback={null}>
+                    <CameraOverlay
+                        onCapture={handleCapture}
+                        onClose={() => setShowCamera(false)}
                     />
-                    <div className="absolute bottom-0 left-0 right-0 pb-8 pt-4 bg-gradient-to-t from-black/80 to-transparent flex items-center justify-center gap-8">
-                        <button
-                            type="button"
-                            onClick={() => setShowCamera(false)}
-                            className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-                            title="Close Camera"
-                        >
-                            <FaXmark className="text-xl" />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={handleCapture}
-                            className="rounded-full bg-white flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-transform"
-                            style={{ width: 72, height: 72 }}
-                            title="Take Photo"
-                        >
-                            <div className="rounded-full border-4 border-gray-300" style={{ width: 64, height: 64 }} />
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setFacingMode(prev => prev === 'user' ? 'environment' : 'user')}
-                            className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white hover:bg-white/30 transition-colors"
-                            title="Flip Camera"
-                        >
-                            <FaRotate className="text-lg" />
-                        </button>
-                    </div>
-                </div>
+                </Suspense>
             )}
 
             {/* ── MAIN INPUT AREA ── */}
@@ -551,8 +502,8 @@ const InputArea = ({
                     {notification && (
                         <div
                             id={notificationId}
-                            role="status"
-                            aria-live="polite"
+
+
                             className="fixed top-28 -translate-x-1/2 z-[100] flex items-center gap-2.5 px-4 py-2 rounded-full text-[var(--text-primary)] text-sm font-medium shadow-[0_4px_12px_rgba(0,0,0,0.1)] border border-[var(--border-color)] bg-[var(--bg-card)] animate-fade-in-up whitespace-nowrap"
                             style={{
                                 left: window.innerWidth >= 1024
@@ -561,11 +512,11 @@ const InputArea = ({
                             }}
                         >
                             {notification === 'Image uploading...' || notification.startsWith('Connecting') || notification === 'Switching voice...' ? (
-                                <span className="animate-spin inline-block w-4 h-4 border-2 border-[var(--text-secondary)] border-t-[var(--brand-primary)] rounded-full" aria-hidden="true" />
+                                <span className="animate-spin inline-block w-4 h-4 border-2 border-[var(--text-secondary)] border-t-[var(--brand-primary)] rounded-full" />
                             ) : notification.includes('failed') ? (
-                                <FaXmark className="text-red-500 text-sm" aria-hidden="true" />
+                                <FaXmark className="text-red-500 text-sm" />
                             ) : (
-                                <FaCircleCheck className="text-green-500 dark:text-green-400 text-sm" aria-hidden="true" />
+                                <FaCircleCheck className="text-green-500 dark:text-green-400 text-sm" />
                             )}
                             {notification}
                         </div>
@@ -576,7 +527,6 @@ const InputArea = ({
                         <div className="flex flex-col items-center justify-center w-full min-h-[140px]">
                             {activeToken ? (
                                 <LiveKitRoom
-                                    // serverUrl="wss://demo-xv7lww7p.livekit.cloud"
                                     serverUrl={activeServerUrl}
                                     token={activeToken}
                                     connect={true}
@@ -667,24 +617,24 @@ const InputArea = ({
                                             type="button"
                                             className={`group flex items-center justify-center w-10 h-10 rounded-full transition-all duration-200 ${showAttachMenu ? 'bg-[var(--brand-primary)] text-white rotate-45' : 'hover:bg-[var(--bg-tertiary)]'}`}
                                             onClick={() => setShowAttachMenu(prev => !prev)}
-                                            aria-label="Attachment options"
-                                            aria-expanded={showAttachMenu}
-                                            aria-haspopup="true"
-                                            aria-controls={attachMenuId}
+
+
+
+
                                             title="Attach"
                                         >
-                                            <FaPlus className={`text-lg transition-transform duration-200 ${showAttachMenu ? 'text-white' : 'text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)]'}`} aria-hidden="true" />
+                                            <FaPlus className={`text-lg transition-transform duration-200 ${showAttachMenu ? 'text-white' : 'text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)]'}`} />
                                         </button>
 
                                         {showAttachMenu && (
                                             <div
                                                 id={attachMenuId}
                                                 className="absolute bottom-full left-0 mb-2 w-48 bg-[var(--bg-card)] border border-[var(--border-color)] rounded-xl shadow-xl z-50 overflow-hidden"
-                                                role="menu"
+
                                             >
                                                 <button
                                                     type="button"
-                                                    role="menuitem"
+
                                                     className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                                     onClick={() => {
                                                         imageInputRef.current?.click();
@@ -697,7 +647,7 @@ const InputArea = ({
                                                 <div className="h-px bg-[var(--border-color)]" />
                                                 <button
                                                     type="button"
-                                                    role="menuitem"
+
                                                     className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                                     onClick={() => {
                                                         pdfInputRef.current?.click();
@@ -710,14 +660,14 @@ const InputArea = ({
                                                 <div className="h-px bg-[var(--border-color)]" />
                                                 <button
                                                     type="button"
-                                                    role="menuitem"
+
                                                     className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                                     onClick={() => {
                                                         setShowCamera(true);
                                                         setShowAttachMenu(false);
                                                     }}
                                                 >
-                                                    <FaCamera className="text-[var(--brand-primary)] text-base" aria-hidden="true" />
+                                                    <FaCamera className="text-[var(--brand-primary)] text-base" />
                                                     Take Photo
                                                 </button>
                                             </div>
@@ -748,7 +698,7 @@ const InputArea = ({
                                             ref={textareaRef}
                                             className="chat-input block w-full border-none outline-none bg-transparent text-base text-[var(--text-primary)] placeholder-[var(--text-secondary)] resize-none py-2.5 max-h-[200px] overflow-y-auto scrollbar-none"
                                             placeholder={window.innerWidth < 768 ? "Ask EximGPT" : "Send a message here..."}
-                                            aria-label="Chat message"
+
                                             value={inputValue}
                                             onChange={handleInput}
                                             onKeyDown={handleKeyDown}
@@ -764,10 +714,10 @@ const InputArea = ({
                                                 type="button"
                                                 className={`group flex items-center justify-center w-10 h-10 rounded-full transition-all relative z-10 hover:bg-[var(--bg-tertiary)]`}
                                                 onClick={handleVoiceToggle}
-                                                aria-label={isVoiceMode ? "Stop Voice Mode" : "Start Voice Input"}
+
                                                 title="Voice Input"
                                             >
-                                                <FaMicrophone className="text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)] text-lg" aria-hidden="true" />
+                                                <FaMicrophone className="text-[var(--text-secondary)] group-hover:text-[var(--brand-primary)] text-lg" />
                                             </button>
                                         </div>
 
@@ -778,16 +728,16 @@ const InputArea = ({
                                         >
                                             <button
                                                 type="button"
-                                                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${disabled
+                                                className={`flex items-center justify-center w-10 h-10 rounded-lg transition-all duration-200 ${disabled || isOffline
                                                     ? 'bg-[var(--bg-tertiary)] text-[var(--text-tertiary)] cursor-not-allowed opacity-50'
                                                     : (inputValue.trim() || (selectedFiles && selectedFiles.length > 0))
                                                         ? 'bg-[var(--brand-primary)] text-white shadow-md hover:shadow-lg active:scale-95 cursor-pointer'
                                                         : 'bg-[var(--bg-tertiary)] text-[var(--text-secondary)] cursor-not-allowed'}`}
                                                 onClick={handleSend}
-                                                disabled={disabled || (!inputValue.trim() && (!selectedFiles || selectedFiles.length === 0))}
-                                                aria-label="Send message"
+                                                disabled={disabled || isOffline || (!inputValue.trim() && (!selectedFiles || selectedFiles.length === 0))}
+
                                             >
-                                                <FaPaperPlane className="text-sm ml-0.5" aria-hidden="true" />
+                                                <FaPaperPlane className="text-sm ml-0.5" />
                                             </button>
                                         </Tooltip>
                                     </div>

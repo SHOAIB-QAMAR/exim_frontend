@@ -25,8 +25,8 @@ const LogisticsLoader = ({ label = "AI Processing..." }) => {
     return (
         <div 
             className="flex items-center gap-3 py-1.5 animate-in fade-in slide-in-from-bottom-2 duration-300"
-            role="status"
-            aria-live="polite"
+           
+           
         >
             <div className="relative flex items-center justify-center w-10 h-10">
                 {/* Clipper to keep pulse effect contained within the ring */}

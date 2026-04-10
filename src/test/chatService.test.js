@@ -1,6 +1,6 @@
 /**
  * Tests for ChatService
- * Covers: getAllThreads, getThreadMessages, deleteThread — success + HTTP error paths
+ * Covers: getAllSessions, getSessionMessages, deleteSession — success + HTTP error paths
  * Uses vi.stubGlobal to mock fetch; no real network calls are made.
  */
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -46,8 +46,8 @@ describe('ChatService', () => {
         vi.unstubAllGlobals();
     });
 
-    // ── getAllThreads ─────────────────────────────────────────────────────
-    describe('getAllThreads', () => {
+    // ── getAllSessions ────────────────────────────────────────────────────
+    describe('getAllSessions', () => {
         const mockCustomer = {
             result: {
                 csBuddyData: { _id: 'cs123', email: 'cs@test.com' },
@@ -61,7 +61,7 @@ describe('ChatService', () => {
             localStorage.setItem('customer', JSON.stringify(mockCustomer));
         });
 
-        it('returns parsed thread array on success with mapped properties', async () => {
+        it('returns parsed session array on success with mapped properties', async () => {
             const backendResponse = {
                 all_chat: [
                     { _id: 'mongo123', query_head: 'Delhi to dubai', session_id: 'sess-abc-123' }
@@ -71,32 +71,31 @@ describe('ChatService', () => {
             
             vi.stubGlobal('fetch', mockFetch(200, backendResponse));
 
-            const result = await ChatService.getAllThreads();
+            const result = await ChatService.getAllSessions();
 
-            expect(result.threads).toHaveLength(1);
+            expect(result.sessions).toHaveLength(1);
             expect(result.hasMore).toBe(true);
-            expect(result.threads[0].sessionId).toBe('sess-abc-123');
-            expect(result.threads[0].objectId).toBe('mongo123');
-            expect(result.threads[0].title).toBe('Delhi to dubai');
+            expect(result.sessions[0].sessionId).toBe('sess-abc-123');
+            expect(result.sessions[0].title).toBe('Delhi to dubai');
         });
 
         it('throws with HTTP status message on non-OK response', async () => {
             vi.stubGlobal('fetch', mockFetch(500, { detail: 'Server error' }));
 
-            await expect(ChatService.getAllThreads()).rejects.toThrow('HTTP 500');
+            await expect(ChatService.getAllSessions()).rejects.toThrow('HTTP 500');
         });
 
         it('throws when fetch itself rejects (network error)', async () => {
             vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network unreachable')));
 
-            await expect(ChatService.getAllThreads()).rejects.toThrow('Network unreachable');
+            await expect(ChatService.getAllSessions()).rejects.toThrow('Network unreachable');
         });
 
         it('sends POST request with parsed payload and Authorization header', async () => {
             const fetchMock = mockFetch(200, { result: [] });
             vi.stubGlobal('fetch', fetchMock);
 
-            await ChatService.getAllThreads(0, 10); // skip 0, limit 10 -> page 1
+            await ChatService.getAllSessions(0, 10); // skip 0, limit 10 -> page 1
 
             const [, options] = fetchMock.mock.calls[0];
             
@@ -113,8 +112,8 @@ describe('ChatService', () => {
         });
     });
 
-    // ── getThreadMessages ─────────────────────────────────────────────────
-    describe('getThreadMessages', () => {
+    // ── getSessionMessages ────────────────────────────────────────────────
+    describe('getSessionMessages', () => {
         it('returns messages on success and sends POST request', async () => {
             const rawMessages = [
                 { _id: 'msg1', role: 'customer', message: 'hello' },
@@ -122,10 +121,10 @@ describe('ChatService', () => {
             ];
             vi.stubGlobal('fetch', mockFetch(200, rawMessages));
 
-            const result = await ChatService.getThreadMessages('mongo-123', 1);
+            const result = await ChatService.getSessionMessages('mongo-123', 1);
 
             // Verify mapping
-            expect(result.threadId).toBe('mongo-123');
+            expect(result.sessionId).toBe('mongo-123');
             expect(result.messages[0].role).toBe('user'); // customer -> user
             expect(result.messages[0].content).toBe('hello');
 
@@ -142,24 +141,24 @@ describe('ChatService', () => {
         it('throws on HTTP 404', async () => {
             vi.stubGlobal('fetch', mockFetch(404, {}));
 
-            await expect(ChatService.getThreadMessages('bad-id')).rejects.toThrow('HTTP 404');
+            await expect(ChatService.getSessionMessages('bad-id')).rejects.toThrow('HTTP 404');
         });
 
-        it('throws immediately if threadId is null', async () => {
-            await expect(ChatService.getThreadMessages(null)).rejects.toThrow(
-                'threadId is required'
+        it('throws immediately if sessionId is null', async () => {
+            await expect(ChatService.getSessionMessages(null)).rejects.toThrow(
+                'sessionId is required'
             );
         });
 
-        it('throws immediately if threadId is undefined', async () => {
-            await expect(ChatService.getThreadMessages(undefined)).rejects.toThrow(
-                'threadId is required'
+        it('throws immediately if sessionId is undefined', async () => {
+            await expect(ChatService.getSessionMessages(undefined)).rejects.toThrow(
+                'sessionId is required'
             );
         });
     });
 
-    // ── deleteThread ──────────────────────────────────────────────────────
-    describe('deleteThread', () => {
+    // ── deleteSession ─────────────────────────────────────────────────────
+    describe('deleteSession', () => {
         const mockCustomer = {
             result: {
                 customerData: { _id: 'cust456' }
@@ -173,7 +172,7 @@ describe('ChatService', () => {
         it('returns true on successful deletion', async () => {
             vi.stubGlobal('fetch', mockFetch(200, {}));
 
-            const result = await ChatService.deleteThread('mongo-abc');
+            const result = await ChatService.deleteSession('mongo-abc');
 
             expect(result).toBe(true);
 
@@ -188,12 +187,12 @@ describe('ChatService', () => {
         it('throws on HTTP 403', async () => {
             vi.stubGlobal('fetch', mockFetch(403, { detail: 'Forbidden' }));
 
-            await expect(ChatService.deleteThread('mongo-abc')).rejects.toThrow('HTTP 403');
+            await expect(ChatService.deleteSession('mongo-abc')).rejects.toThrow('HTTP 403');
         });
 
-        it('throws immediately if threadId is null', async () => {
-            await expect(ChatService.deleteThread(null)).rejects.toThrow(
-                'threadId is required'
+        it('throws immediately if sessionId is null', async () => {
+            await expect(ChatService.deleteSession(null)).rejects.toThrow(
+                'sessionId is required'
             );
         });
     });

@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { renderHook, act } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { ThemeProvider, useTheme } from '../providers/ThemeContext';
 
 const wrapper = ({ children }) => <ThemeProvider>{children}</ThemeProvider>;

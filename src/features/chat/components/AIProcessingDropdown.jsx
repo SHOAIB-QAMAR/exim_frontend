@@ -101,15 +101,15 @@ const AIProcessingDropdown = ({ steps = [], metrics = null, isComplete = false }
                         </span>
                     )}
                 </div>
-                <FaChevronDown 
-                    className={`text-[var(--text-secondary)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} 
-                    aria-hidden="true" 
+                <FaChevronDown
+                    className={`text-[var(--text-secondary)] transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`}
+                    aria-hidden="true"
                 />
             </button>
 
             {/* Expandable Content Area */}
             {isExpanded && (
-                <div 
+                <div
                     id={dropdownId}
                     className="border-t border-[var(--border-color)] animate-in slide-in-from-top-1 duration-200"
                 >
@@ -124,12 +124,11 @@ const AIProcessingDropdown = ({ steps = [], metrics = null, isComplete = false }
                                 {steps.map((step, idx) => (
                                     <div key={idx} className="flex flex-col gap-1.5 relative pl-4 border-l border-[var(--border-color)] ml-1">
                                         {/* Timeline Dot Indicator */}
-                                        <div 
-                                            className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-[var(--bg-card)] ${
-                                                step.status === 'completed' ? 'bg-blue-500' : 
-                                                step.status === 'in-progress' ? 'bg-[var(--brand-primary)] animate-pulse' : 
-                                                'bg-[var(--text-secondary)]'
-                                            }`}
+                                        <div
+                                            className={`absolute -left-[5px] top-1.5 w-2.5 h-2.5 rounded-full border-2 border-[var(--bg-card)] ${step.status === 'completed' ? 'bg-blue-500' :
+                                                    step.status === 'in-progress' ? 'bg-[var(--brand-primary)] animate-pulse' :
+                                                        'bg-[var(--text-secondary)]'
+                                                }`}
                                             aria-hidden="true"
                                         ></div>
 

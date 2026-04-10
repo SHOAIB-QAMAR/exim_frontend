@@ -3,7 +3,7 @@
  * Covers: initial state, token verification, login, logout
  */
 import React from 'react';
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // ─── Mock dependencies ───────────────────────────────────────────────────────

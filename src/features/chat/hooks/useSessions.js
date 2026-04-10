@@ -4,17 +4,16 @@ import ChatService from '../../../services/chat.service';
 const DATA_LIMIT = 10;
 
 /**
- * useThreads Hook
+ * useSessions Hook
  * 
- * Manages the thread history list, pagination, and deletion.
+ * Manages the session history list, pagination, and deletion.
  * Implements a "look-ahead" loading strategy to prepopulate the sidebar.
  * 
- * @returns {Object} State and methods for thread management
+ * @returns {Object} State and methods for session management
  */
-export const useThreads = () => {
-    const [threads, setThreads] = useState([]);
+export const useSessions = () => {
+    const [sessions, setSessions] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [fetchError, setFetchError] = useState(null);
     const [hasMore, setHasMore] = useState(true);
     const [isFetchingMore, setIsFetchingMore] = useState(false);
 
@@ -22,11 +21,11 @@ export const useThreads = () => {
     const skipRef = useRef(0);
 
     /**
-     * Fetches a batch of threads from the server.
+     * Fetches a batch of sessions from the server.
      * 
      * @param {boolean} [isLoadMore=false] - If true, appends results to the current list
      */
-    const fetchThreads = useCallback(async (isLoadMore = false) => {
+    const fetchSessions = useCallback(async (isLoadMore = false) => {
         const loadingMore = isLoadMore === true;
 
         if (loadingMore) {
@@ -36,23 +35,22 @@ export const useThreads = () => {
             skipRef.current = 0;
             setHasMore(true);
         }
-        setFetchError(null);
 
         try {
             const currentSkip = skipRef.current;
-            const response = await ChatService.getAllThreads(currentSkip, DATA_LIMIT);
-            const newThreadsData = response.threads || [];
+            const response = await ChatService.getAllSessions(currentSkip, DATA_LIMIT);
+            const newSessionsData = response.sessions || [];
             const apiHasMore = response.hasMore || false;
 
             if (isLoadMore) {
-                setThreads(prev => {
-                    // Prevent duplicate thread entries
-                    const existingIds = new Set(prev.map(t => t.sessionId));
-                    const newThreads = newThreadsData.filter(t => !existingIds.has(t.sessionId));
-                    return [...prev, ...newThreads];
+                setSessions(prev => {
+                    // Prevent duplicate session entries
+                    const existingIds = new Set(prev.map(s => s.sessionId));
+                    const newSessions = newSessionsData.filter(s => !existingIds.has(s.sessionId));
+                    return [...prev, ...newSessions];
                 });
             } else {
-                setThreads(newThreadsData);
+                setSessions(newSessionsData);
             }
 
             setHasMore(apiHasMore);
@@ -60,8 +58,7 @@ export const useThreads = () => {
                 skipRef.current = currentSkip + DATA_LIMIT;
             }
         } catch (error) {
-            console.error('[useThreads] Fetch failed:', error);
-            setFetchError(loadingMore ? 'Failed to load more chat history' : 'Failed to load chat history');
+            console.error('[useSessions] Fetch failed:', error);
         } finally {
             setIsLoading(false);
             setIsFetchingMore(false);
@@ -79,68 +76,64 @@ export const useThreads = () => {
         hasLoadedRef.current = true;
 
         const loadInitialPages = async () => {
-            await fetchThreads(); // Load page 1
+            await fetchSessions(); // Load page 1
             // Immediately load page 2 after page 1 finishes to prepopulate sidebar
             if (skipRef.current > 0) {
-                await fetchThreads(true);
+                await fetchSessions(true);
             }
         };
 
         loadInitialPages();
-    }, [fetchThreads]);
+    }, [fetchSessions]);
 
     /**
      * Trigger for manual scroll-based pagination.
      */
     const loadMore = useCallback(() => {
         if (!isFetchingMore && hasMore) {
-            fetchThreads(true);
+            fetchSessions(true);
         }
-    }, [fetchThreads, isFetchingMore, hasMore]);
+    }, [fetchSessions, isFetchingMore, hasMore]);
 
     /**
-     * Deletes a thread locally and on the server.
+     * Deletes a session locally and on the server.
      * 
-     * @param {string} sessionId - ID of the thread to remove
+     * @param {string} sessionId - ID of the session to remove
      * @returns {Promise<boolean>} Success status
      */
-    const deleteThread = useCallback(async (sessionId) => {
+    const deleteSession = useCallback(async (sessionId) => {
         try {
             if (!sessionId) return false;
 
-            const threadToDel = threads.find(t => t.sessionId === sessionId);
-            const objectId = threadToDel?.objectId || threadToDel?._id || sessionId;
-
-            await ChatService.deleteThread(objectId);
-            setThreads(prev => prev.filter(t => t.sessionId !== sessionId));
+            await ChatService.deleteSession(sessionId);
+            setSessions(prev => prev.filter(s => s.sessionId !== sessionId));
             return true;
         } catch (error) {
-            console.error('[useThreads] Delete failed:', error);
+            console.error('[useSessions] Delete failed:', error);
             return false;
         }
-    }, [threads]);
+    }, [sessions]);
 
     /**
-     * Optimistically moves a thread to the top of the list.
-     * Often used when a message is sent in an existing thread.
+     * Optimistically moves a session to the top of the list.
+     * Often used when a message is sent in an existing session.
      */
-    const moveThreadToTop = useCallback((sessionId) => {
-        setThreads(prev => {
-            const idx = prev.findIndex(t => t.sessionId === sessionId);
+    const moveSessionToTop = useCallback((sessionId) => {
+        setSessions(prev => {
+            const idx = prev.findIndex(s => s.sessionId === sessionId);
             if (idx <= 0) return prev;
-            const thread = prev[idx];
-            return [thread, ...prev.filter((_, i) => i !== idx)];
+            const session = prev[idx];
+            return [session, ...prev.filter((_, i) => i !== idx)];
         });
     }, []);
 
     return {
-        threads,
-        setThreads,
-        fetchThreads,
-        deleteThread,
-        moveThreadToTop,
+        sessions,
+        setSessions,
+        fetchSessions,
+        deleteSession,
+        moveSessionToTop,
         isLoading,
-        fetchError,
         loadMore,
         hasMore,
         isFetchingMore

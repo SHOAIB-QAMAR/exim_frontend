@@ -65,21 +65,6 @@ const faqData = [
         question: "What are common causes of shipment delays?",
         answer:
             "Shipment delays may occur due to port congestion, customs inspections, weather conditions, documentation errors, vessel rollovers, or peak season demand."
-    },
-    {
-        question: "What is customs clearance and how long does it take?",
-        answer:
-            "Customs clearance is the process of submitting documents and paying duties to release goods from customs. The timeline varies based on shipment type, compliance, and inspection requirements."
-    },
-    {
-        question: "How do trade agreements affect import duties?",
-        answer:
-            "Trade agreements reduce or eliminate import duties between participating countries, provided goods meet origin and documentation requirements."
-    },
-    {
-        question: "What is demurrage and detention in shipping?",
-        answer:
-            "Demurrage is charged for using port storage beyond free time, while detention applies when containers are held outside the port longer than allowed."
     }
 ];
 
@@ -104,7 +89,7 @@ const FAQ = ({ onFeatureClick, onClose }) => {
     }, []);
 
     /**
-     * Toggles the accordion state for a specific FAQ item.
+     * Toggles the state for a specific FAQ item.
      * @param {number} idx - Index of the item to toggle
      */
     const toggleItem = (idx) => {
@@ -115,22 +100,23 @@ const FAQ = ({ onFeatureClick, onClose }) => {
         <div className="faq-section w-full max-w-4xl mx-auto mt-8 px-4">
             {/* Header */}
             <div className="flex justify-between items-center mb-6">
-                <h3 className="text-xl font-bold text-[var(--text-primary)] uppercase tracking-wider">Frequently Asked Questions</h3>
+                <h3 className="text-xl font-bold text-[var(--text-primary)] uppercase tracking-wider">
+                    Frequently Asked Questions
+                </h3>
                 <button
                     type="button"
                     onClick={onClose}
                     className="p-2 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
                     aria-label="Close FAQ"
                 >
-                    <FaXmark className="w-5 h-5" aria-hidden="true" />
+                    <FaXmark className="w-5 h-5" />
                 </button>
             </div>
 
             {/* FAQ List */}
-            <div 
-                className={`flex flex-col border-t border-[var(--border-color)] max-h-[250px] overflow-y-auto custom-scrollbar pr-2 transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'}`}
-                role="region"
-                aria-label="Questions list"
+            <div
+                className={`flex flex-col border-t border-[var(--border-color)] max-h-[250px] overflow-y-auto custom-scrollbar pr-2 transition-opacity duration-500 ${loaded ? 'opacity-100' : 'opacity-0'
+                    }`}
             >
                 {faqData.map((item, idx) => {
                     const isOpen = openIndex === idx;
@@ -146,25 +132,27 @@ const FAQ = ({ onFeatureClick, onClose }) => {
                             <button
                                 type="button"
                                 id={itemId}
-                                aria-expanded={isOpen}
-                                aria-controls={contentId}
                                 className="w-full flex items-center justify-between py-5 text-left group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] rounded-lg px-2 -mx-2"
                                 onClick={() => toggleItem(idx)}
                             >
-                                <span className={`text-base font-medium transition-colors ${isOpen ? 'text-[var(--brand-primary)]' : 'text-[var(--text-primary)] group-hover:text-[var(--brand-primary)]'}`}>
+                                <span
+                                    className={`text-base font-medium transition-colors ${isOpen
+                                        ? 'text-[var(--brand-primary)]'
+                                        : 'text-[var(--text-primary)] group-hover:text-[var(--brand-primary)]'
+                                        }`}
+                                >
                                     {item.question}
                                 </span>
-                                <span className="text-[var(--text-secondary)] text-sm ml-4 transition-transform duration-300" aria-hidden="true">
+                                <span className="text-[var(--text-secondary)] text-sm ml-4 transition-transform duration-300">
                                     {isOpen ? <FaChevronUp /> : <FaChevronDown />}
                                 </span>
                             </button>
 
                             {/* Answer Content */}
-                            <div 
+                            <div
                                 id={contentId}
-                                role="region"
-                                aria-labelledby={itemId}
-                                className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-40 opacity-100 mb-5' : 'max-h-0 opacity-0'}`}
+                                className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-40 opacity-100 mb-5' : 'max-h-0 opacity-0'
+                                    }`}
                             >
                                 <div className="px-2">
                                     <p className="text-base text-[var(--text-secondary)] leading-relaxed">
@@ -177,7 +165,6 @@ const FAQ = ({ onFeatureClick, onClose }) => {
                                             e.stopPropagation();
                                             onFeatureClick(item.question);
                                         }}
-                                        aria-label={`Ask about: ${item.question}`}
                                     >
                                         Ask about this
                                     </button>

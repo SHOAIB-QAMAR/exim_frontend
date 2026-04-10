@@ -1,12 +1,11 @@
 /**
  * FileCache - Session-level Blob caching for remote media assets.
  * 
- * Fetches remote URLs once, converts them to local blob: URLs,
- * and serves them instantly on subsequent requests.
+ * Fetches remote URLs once, converts them to local blob: URLs, and serves them instantly on subsequent requests.
  */
 
-const cache = new Map();       // remoteUrl -> blobUrl
-const inflight = new Map();    // remoteUrl -> Promise<blobUrl>
+const cache = new Map();       // Mapping : remoteUrl -> blobUrl
+const inflight = new Map();    // Mapping : remoteUrl -> Promise<blobUrl>
 
 /**
  * Returns a cached blob URL for the given remote URL.

@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom';
+import { vi } from 'vitest';
 
 // ─── Global WebSocket mock ───────────────────────────────────────────────────
 class MockWebSocket {

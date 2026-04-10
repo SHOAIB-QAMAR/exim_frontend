@@ -18,6 +18,16 @@ vi.mock('../utils/logger', () => ({
     default: { log: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
+const { mockShowNotification } = vi.hoisted(() => ({
+    mockShowNotification: vi.fn(),
+}));
+
+vi.mock('../providers/UIContext', () => ({
+    useUI: () => ({
+        showNotification: mockShowNotification,
+    }),
+}));
+
 import { useChatActions } from '../features/chat/hooks/useChatActions';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -80,8 +90,7 @@ function setupHook(sessionOverrides = {}) {
 
     return {
         result,
-        deps,
-        getSessions: () => sessions,
+        deps: { ...deps, getSessions: () => sessions },
     };
 }
 
@@ -97,6 +106,13 @@ describe('useChatActions', () => {
                 customerBranchPersonId: 'person-1'
             }
         }));
+
+        // Default to online
+        Object.defineProperty(window.navigator, 'onLine', {
+            configurable: true,
+            value: true,
+            writable: true
+        });
     });
 
     afterEach(() => {
@@ -126,7 +142,7 @@ describe('useChatActions', () => {
             expect(deps.sendMessage).not.toHaveBeenCalled();
         });
 
-        it('appends an error message when sendMessage returns false', async () => {
+        it('appends an error message when sendMessage returns false and online', async () => {
             const { result, deps } = setupHook();
             deps.sendMessage.mockReturnValue(false);
 
@@ -136,6 +152,23 @@ describe('useChatActions', () => {
 
             // setActiveSessions should be called twice — once for optimistic update, once for error
             expect(deps.setActiveSessions).toHaveBeenCalledTimes(2);
+            const updater = deps.setActiveSessions.mock.calls[1][0];
+            const updated = updater(deps.getSessions());
+            expect(updated[0].messages[updated[0].messages.length - 1].content).toBe('Error: Connection failed. Please try again.');
+        });
+
+        it('shows notification and no assistant message when offline', async () => {
+            const { result, deps } = setupHook();
+            deps.sendMessage.mockReturnValue(false);
+            window.navigator.onLine = false;
+
+            await act(async () => {
+                await result.current.handleSend('Hi');
+            });
+
+            expect(mockShowNotification).toHaveBeenCalledWith('No internet', 3000);
+            // Should not have any updates (optimistic or otherwise)
+            expect(deps.setActiveSessions).toHaveBeenCalledTimes(0);
         });
 
         it('sets title from first 4 words when messages array is empty', async () => {
@@ -155,19 +188,18 @@ describe('useChatActions', () => {
 
     // ── handleTypingComplete ──────────────────────────────────────────────
     describe('handleTypingComplete', () => {
-        it('marks the message at given index as isNew: false', () => {
-            const messages = [
-                { role: 'assistant', content: 'Hello', isNew: true }
-            ];
-            const { result, deps } = setupHook({ messages });
+        it('clears isThinking and updates session state', () => {
+            const { result, deps } = setupHook({ isThinking: true });
 
             act(() => {
-                result.current.handleTypingComplete(0);
+                result.current.handleTypingComplete('session-1');
             });
 
-            expect(deps.updateActiveSession).toHaveBeenCalled();
-            const { messages: updated } = deps.updateActiveSession.mock.calls[0][0];
-            expect(updated[0].isNew).toBe(false);
+            expect(deps.setActiveSessions).toHaveBeenCalled();
+            const updater = deps.setActiveSessions.mock.calls[0][0];
+            const updated = updater(deps.getSessions());
+            expect(updated[0].isThinking).toBe(false);
+            expect(deps.setFocusTrigger).toHaveBeenCalledWith(true);
         });
     });
 

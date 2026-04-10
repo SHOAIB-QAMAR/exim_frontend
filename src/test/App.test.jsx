@@ -3,7 +3,7 @@
  * Covers: loading state, auth routing (AuthPage vs Layout)
  */
 import React from 'react';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // ─── Mock all providers and child components ──────────────────────────────────

@@ -8,6 +8,7 @@
 
     /* Brand Colors */
     --brand-primary: #C8202F;
+    /* --brand-primary: #fa5a5a; */
     --brand-highlight: #FA5A5A;
     --brand-success: #28A745;
     --brand-dark: #0F172A;
@@ -234,6 +235,10 @@ body {
 }
 
 /* Custom Scrollbar */
+.chat-scroll-container {
+    overflow-anchor: auto !important;
+}
+
 ::-webkit-scrollbar {
     width: 3px;
     height: 4px;

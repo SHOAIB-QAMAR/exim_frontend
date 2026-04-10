@@ -37,7 +37,7 @@ const LanguagePicker = ({ selectedLang, onSelectLang, onClose }) => {
                 <div className="panel-header flex items-center gap-3 p-3 border-b border-[var(--border-color)] bg-[var(--bg-secondary)]">
                     <input
                         type="text"
-                        className="language-search flex-1 w-full p-2 text-xs rounded-md border border-[var(--border-color)] outline-none bg-[var(--bg-card)] text-[var(--text-primary)] focus:border-[var(--brand-primary)] placeholder:text-[var(--text-tertiary)]"
+                        className="language-search flex-1 w-full p-2 text-xs rounded-md border border-[var(--border-color)] outline-none bg-[var(--bg-card)] text-[var(--text-primary)] focus:border-[var(--brand-primary)] placeholder:text-[var(--text-primary)]"
                         placeholder="Search language..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}

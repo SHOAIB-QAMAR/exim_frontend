@@ -53,15 +53,15 @@ const ContextPanel = ({ isOpen, onClose, data }) => {
             <div
                 className={`md:hidden fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-opacity duration-400 ease-[cubic-bezier(0.33,1,0.68,1)] ${renderParams.animate ? 'opacity-100' : 'opacity-0'}`}
                 onClick={onClose}
-                aria-hidden="true"
+               
                 // Prevent lingering invisible clicks during the fade-out animation
                 style={{ pointerEvents: renderParams.show ? 'auto' : 'none' }}
             />
 
             {/* ── PANEL CONTAINER ── */}
             <div
-                role="complementary"
-                aria-label={data?.title || 'Context Information'}
+               
+                
                 className={`
                     z-50 flex flex-col bg-[var(--bg-card)]/95 backdrop-blur-2xl overflow-hidden transition-all duration-400 ease-[cubic-bezier(0.16,1,0.3,1)] md:border-l md:border-[var(--border-color)]
                     
@@ -79,7 +79,7 @@ const ContextPanel = ({ isOpen, onClose, data }) => {
                     {/* Header - Styled to match main Header.jsx for unified look */}
                     <div className="flex items-center justify-between px-3 md:px-5 py-2 md:py-3 h-14 md:h-16 border-b border-[var(--border-color)] bg-[var(--bg-card)]/95 backdrop-blur-md shrink-0 shadow-sm text-[var(--text-primary)]">
                         <div className="flex items-center gap-3 overflow-hidden">
-                            <div className="w-8 h-8 md:w-9 md:h-9 rounded-lg bg-[var(--brand-primary)]/10 flex items-center justify-center text-[var(--brand-primary)] shrink-0" aria-hidden="true">
+                            <div className="w-8 h-8 md:w-9 md:h-9 rounded-lg bg-[var(--brand-primary)]/10 flex items-center justify-center text-[var(--brand-primary)] shrink-0">
                                 {data?.type === 'link' ? <FaGlobe className="text-sm md:text-base" /> : <span className="font-bold text-xs uppercase">Txt</span>}
                             </div>
                             <h3 className="font-semibold text-base md:text-lg text-[var(--text-primary)] truncate leading-none">
@@ -90,10 +90,10 @@ const ContextPanel = ({ isOpen, onClose, data }) => {
                             type="button"
                             onClick={onClose}
                             className="p-2 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-all active:scale-95"
-                            aria-label="Close panel"
+                           
                             title="Close Panel"
                         >
-                            <FaXmark className="text-lg" aria-hidden="true" />
+                            <FaXmark className="text-lg" />
                         </button>
                     </div>
 
@@ -103,8 +103,8 @@ const ContextPanel = ({ isOpen, onClose, data }) => {
                             <div className="flex flex-col h-full relative">
                                 {/* Loading Indicator */}
                                 {iframeLoading && (
-                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--bg-secondary)] z-10" role="status">
-                                        <AiOutlineLoading3Quarters className="animate-spin text-3xl text-[var(--brand-primary)] mb-3" aria-hidden="true" />
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-[var(--bg-secondary)] z-10">
+                                        <AiOutlineLoading3Quarters className="animate-spin text-3xl text-[var(--brand-primary)] mb-3" />
                                         <span className="text-sm text-[var(--text-secondary)] animate-pulse">Loading preview...</span>
                                     </div>
                                 )}
@@ -128,7 +128,7 @@ const ContextPanel = ({ isOpen, onClose, data }) => {
                                     className="absolute bottom-4 right-4 flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-[var(--brand-primary)] hover:bg-[var(--brand-highlight)] rounded-full shadow-lg hover:shadow-xl transition-all active:scale-95 z-20"
                                 >
                                     <span>Open</span>
-                                    <FaArrowUpRightFromSquare className="text-xs" aria-hidden="true" />
+                                    <FaArrowUpRightFromSquare className="text-xs" />
                                 </a>
                             </div>
                         )}

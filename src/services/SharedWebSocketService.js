@@ -1,11 +1,6 @@
 import { io } from 'socket.io-client';
 import API_CONFIG from './api.config';
 
-// ==================== CONSTANTS ====================
-const CONNECTION_DEBOUNCE_MS = 300;     // Delay before opening/closing sockets to prevent UI flicker spam
-const MAX_RECONNECT_ATTEMPTS = 5;       // Total retry limit before showing a hard error to the user
-const INITIAL_RETRY_DELAY_MS = 1000;    // Exponential backoff starting interval
-
 // SharedWebSocketService (Singleton)
 // Instead of giving every chat tab its own WebSocket (which strains server limits), this class pools all active tabs into a single, global, multiplexed WebSocket connection.
 // It manages auto-reconnects, queueing offline messages, and measuring network latency (ping/pong).
@@ -24,24 +19,15 @@ class SharedWebSocketService {
 
         // Socket.IO state
         this.socket = null;
+
         // Arrays/Sets mapping which UI components are currently listening
         this.subscribers = new Set();
-        this.errorSubscribers = new Set();
-
-        // A queue holding messages the user tried to send while offline/reconnecting
-        this.messageQueue = [];
 
         // A list of all chat tab IDs currently open in the UI that require the socket
         this.activeSessions = new Set();
 
         // State trackers
-        this.reconnectAttempts = 0;
         this.isExplicitlyDisconnected = false; // True during logout or manual disconnects
-
-        // Timers for managing debounce
-        this.connectTimer = null;
-        this.disconnectTimer = null;
-        this.reconnectTimer = null;
 
         // Browser level listeners to detect if the laptop/phone completely loses WiFi
         window.addEventListener('online', () => this._handleNetworkChange(true));
@@ -51,10 +37,22 @@ class SharedWebSocketService {
     // ==================== EVENT HANDLERS ====================
 
     _handleNetworkChange(isOnline) {
-        this._notifyErrorSubscribers(isOnline ? null : 'No internet connection');
-        if (isOnline && this.activeSessions.size > 0) {
-            this.reconnectAttempts = 0;
-            this._scheduleConnect();
+        console.log(`[WS] Network status: ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+
+        if (!isOnline) {
+            // Explicitly disconnect to stop Socket.IO's internal retry loop and console errors
+            if (this.socket) {
+                console.log('[WS] Stopping connection due to offline status');
+                this.socket.disconnect();
+            }
+        } else if (this.activeSessions.size > 0) {
+            // Browser reported back 'online' - trigger an immediate reconnection attempt
+            console.log('[WS] Network restored, attempting to reconnect...');
+            if (this.socket && !this.socket.connected) {
+                this.socket.connect();
+            } else {
+                this._scheduleConnect();
+            }
         }
     }
 
@@ -62,40 +60,25 @@ class SharedWebSocketService {
 
     _scheduleConnect() {
         this.isExplicitlyDisconnected = false;
-
-        if (this.disconnectTimer) {
-            clearTimeout(this.disconnectTimer);
-            this.disconnectTimer = null;
-        }
-
-        if (this.socket?.connected || this.connectTimer) {
-            return;
-        }
-
-        this.connectTimer = setTimeout(() => {
-            this.connectTimer = null;
-            this._createSocket();
-        }, CONNECTION_DEBOUNCE_MS);
+        if (this.socket?.connected) return;
+        this._createSocket();
     }
 
     _scheduleDisconnect() {
-        if (this.connectTimer) {
-            clearTimeout(this.connectTimer);
-            this.connectTimer = null;
-        }
-
-        if (this.disconnectTimer) clearTimeout(this.disconnectTimer);
-        this.disconnectTimer = setTimeout(() => {
-            this.disconnectTimer = null;
-            this.isExplicitlyDisconnected = true;
-            this._closeSocket();
-        }, CONNECTION_DEBOUNCE_MS);
+        this.isExplicitlyDisconnected = true;
+        this._closeSocket();
     }
 
     _createSocket() {
         if (this.activeSessions.size === 0) return;
 
-        if (this.socket && (this.socket.connected || this.socket.connecting || this.socket.io.engine)) {
+        if (this.socket && (this.socket.connected || this.socket.connecting)) {
+            return;
+        }
+
+        // If socket exists but is disconnected, just call connect() instead of creating a new one
+        if (this.socket) {
+            this.socket.connect();
             return;
         }
 
@@ -107,17 +90,13 @@ class SharedWebSocketService {
                 multiplex: false,
                 transports: ['polling', 'websocket'],
                 withCredentials: true,
-                reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-                reconnectionDelay: INITIAL_RETRY_DELAY_MS,
                 timeout: 30000
             });
 
             this.socket.connect();
 
             this.socket.on('connect', () => {
-                this.reconnectAttempts = 0;
-                this._notifyErrorSubscribers(null);
-                this._flushMessageQueue();
+                console.log('[WS] ✅ Connected');
             });
 
             this.socket.on('query_response', (data) => {
@@ -125,29 +104,16 @@ class SharedWebSocketService {
                 this._handleMessage({ data });
             });
 
-            this.socket.on('connect_error', () => {
-                this._notifyErrorSubscribers('Connection error. Reconnecting...');
+            this.socket.on('connect_error', (error) => {
+                console.warn('[WS] ⚠️ Connection error:', error.message || error);
             });
 
-            this.socket.on('disconnect', () => {
-                if (!this.isExplicitlyDisconnected && this.activeSessions.size > 0) {
-                    this._notifyErrorSubscribers('Connection lost. Reconnecting...');
-                }
+            this.socket.on('disconnect', (reason) => {
+                console.log(`[WS] ❌ Disconnected (${reason})`);
             });
 
         } catch {
             // Connection creation failed
-        }
-    }
-
-
-
-    /**
-     * Implements basic alerting if Socket.IO fails to reconnect after all attempts.
-     */
-    _handleReconnection() {
-        if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-            this._notifyErrorSubscribers('Unable to connect to chat server. Please check your connection.');
         }
     }
 
@@ -163,40 +129,7 @@ class SharedWebSocketService {
 
             // Extract the target sessionId for multiplexing
             // Backend sends session_id which contains the identifier
-            let sessionId = data.sessionId || data.threadId || data.thread_id || data.session_id || data.chat_id;
-
-            // For new chats, backend returns a new session_id that doesn't match
-            // the local UUID. Use questionAnswer to route to the correct local session.
-            if (!this.pendingRequests) this.pendingRequests = new Map();
-            if (data.questionAnswer && this.pendingRequests.has(data.questionAnswer)) {
-                const requestInfo = this.pendingRequests.get(data.questionAnswer);
-                const localSessionId = typeof requestInfo === 'object' ? requestInfo.sessionId : requestInfo;
-                if (localSessionId !== sessionId) {
-                    sessionId = localSessionId;
-                }
-
-                // --- METRICS ---
-                if (typeof requestInfo === 'object' && requestInfo.startTime && !requestInfo.hasLoggedLatency) {
-                    const latency = performance.now() - requestInfo.startTime;
-                    const resSizeBytes = new Blob([typeof event.data === 'string' ? event.data : JSON.stringify(event.data)]).size;
-                    console.groupCollapsed(`📊 [Metrics] WebSocket Response: ${Math.round(latency)}ms`);
-                    console.log(`Latency: ${latency.toFixed(2)} ms`);
-                    console.log(`Payload Size: ${(resSizeBytes / 1024).toFixed(2)} KB (${resSizeBytes} bytes)`);
-                    console.groupEnd();
-                    requestInfo.hasLoggedLatency = true;
-                }
-                // ---------------
-
-                // Clean up once the stream is complete
-                const isDone = data.done === true ||
-                    data.TextCompleted === true ||
-                    data.type === 'done' ||
-                    data.type === 'message_end' ||
-                    (typeof data.response === 'string' && data.response.includes('@//done//@'));
-                if (isDone) {
-                    this.pendingRequests.delete(data.questionAnswer);
-                }
-            }
+            let sessionId = data.session_id || data.sessionId || data.threadId || data.thread_id || data.chat_id;
 
             // Notify all local React UI components subscribed to this Service
             this._notifySubscribers(sessionId, data);
@@ -204,25 +137,6 @@ class SharedWebSocketService {
         } catch {
             // Message handling failed silently
         }
-    }
-
-    /**
-     * Loops through any offline messages sent by the user during an outage 
-     * and pushes them correctly onto the newly re-established Socket.IO pipe.
-     */
-    _flushMessageQueue() {
-        if (this.messageQueue.length === 0) return;
-
-        const queue = [...this.messageQueue];
-        this.messageQueue = [];
-
-        queue.forEach(msg => {
-            if (this.socket?.connected) {
-                this.socket.emit('gpt_query', msg);
-            } else {
-                this.messageQueue.push(msg);
-            }
-        });
     }
 
     /**
@@ -238,27 +152,14 @@ class SharedWebSocketService {
 
         if (this.socket?.connected) {
 
-            // Track questionAnswer → local sessionId for routing responses back
-            if (!this.pendingRequests) this.pendingRequests = new Map();
-            if (parsed.questionAnswer) {
-                this.pendingRequests.set(parsed.questionAnswer, { sessionId, startTime: performance.now() });
-            }
-
-            // --- METRICS ---
-            const reqSizeBytes = new Blob([JSON.stringify(parsed)]).size;
-            console.groupCollapsed(`📊 [Metrics] WebSocket Request`);
-            console.log(`Payload Size: ${(reqSizeBytes / 1024).toFixed(2)} KB (${reqSizeBytes} bytes)`);
-            console.groupEnd();
-            // ---------------
-
-            console.log('[WS] → gpt_query', parsed);
+            console.log('[WS] → gpt_query');
+            console.table(parsed);
             this.socket.emit('gpt_query', parsed);
             return true;
         }
 
-        this.messageQueue.push(parsed);
         if (!this.socket) this._scheduleConnect();
-        return true;
+        return false;
     }
 
     _closeSocket() {
@@ -266,7 +167,6 @@ class SharedWebSocketService {
             this.socket.disconnect();
             this.socket = null;
         }
-        this.messageQueue = [];
     }
 
     /**
@@ -274,15 +174,7 @@ class SharedWebSocketService {
      */
     forceClose() {
         this.isExplicitlyDisconnected = true;
-        clearTimeout(this.connectTimer);
-        clearTimeout(this.disconnectTimer);
-        clearTimeout(this.reconnectTimer);
-
-        this.connectTimer = null;
-        this.disconnectTimer = null;
-        this.reconnectTimer = null;
         this.activeSessions.clear();
-        this.reconnectAttempts = 0;
         this._closeSocket();
     }
 
@@ -296,13 +188,6 @@ class SharedWebSocketService {
         this.subscribers.forEach(callback => {
             try { callback(sessionId, message); }
             catch { /* Subscriber error */ }
-        });
-    }
-
-    _notifyErrorSubscribers(error) {
-        this.errorSubscribers.forEach(callback => {
-            try { callback(error); }
-            catch { /* Error subscriber error */ }
         });
     }
 
@@ -325,15 +210,8 @@ class SharedWebSocketService {
         return () => this.subscribers.delete(callback);
     }
 
-    /** Subscribe to connection errors */
-    subscribeToErrors(callback) {
-        this.errorSubscribers.add(callback);
-        return () => this.errorSubscribers.delete(callback);
-    }
-
     /** Manually trigger reconnection */
     retryConnection() {
-        this.reconnectAttempts = 0;
         this._scheduleConnect();
     }
 

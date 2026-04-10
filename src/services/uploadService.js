@@ -113,6 +113,8 @@ export const uploadFileToBackend = async (file) => {
     }
 
     const data = await response.json();
+    console.log('[Upload] ← Response');
+    console.table(data);
 
     if (!data.status || !data.url) {
         throw new Error('Upload succeeded but server returned no URL.');

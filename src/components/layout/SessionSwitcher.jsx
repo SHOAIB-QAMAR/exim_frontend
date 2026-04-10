@@ -2,10 +2,10 @@ import React, { useEffect } from 'react';
 import { FaXmark, FaComments, FaSpinner, FaPlus, FaShip } from "react-icons/fa6";
 
 /**
- * A mobile-optimized thread switcher that allows users to quickly jump
+ * A mobile-optimized session switcher that allows users to quickly jump
  * between active chat sessions using a card-based grid interface.
  */
-const ThreadSwitcher = ({
+const SessionSwitcher = ({
     isOpen,
     onClose,
     sessions = [],
@@ -44,9 +44,6 @@ const ThreadSwitcher = ({
 
     return (
         <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="thread-switcher-title"
             className="fixed inset-0 z-[100] bg-[var(--bg-primary)] animate-in fade-in duration-200 flex flex-col"
         >
             {/* Header Section */}
@@ -55,12 +52,12 @@ const ThreadSwitcher = ({
                     <button
                         type="button"
                         onClick={onClose}
-                        aria-label="Close thread switcher"
                         className="p-2 -ml-2 rounded-full hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                        aria-label="Close session switcher"
                     >
-                        <FaXmark className="text-lg" aria-hidden="true" />
+                        <FaXmark className="text-lg" />
                     </button>
-                    <h3 id="thread-switcher-title" className="text-base font-semibold text-[var(--text-primary)]">
+                    <h3 id="session-switcher-title" className="text-base font-semibold text-[var(--text-primary)]">
                         {sessions.length} {sessions.length === 1 ? 'Chat' : 'Chats'}
                     </h3>
                 </div>
@@ -73,7 +70,7 @@ const ThreadSwitcher = ({
                     }}
                     className="flex items-center gap-2 px-3 py-2 rounded-full bg-[var(--brand-primary)] text-white text-sm font-medium hover:opacity-90 transition-opacity"
                 >
-                    <FaPlus className="text-xs" aria-hidden="true" />
+                    <FaPlus className="text-xs" />
                     <span>New</span>
                 </button>
             </div>
@@ -82,7 +79,7 @@ const ThreadSwitcher = ({
             <div className="flex-1 overflow-y-auto p-3 bg-[var(--bg-primary)]">
                 {sessions.length === 0 ? (
                     <div className="flex flex-col items-center justify-center h-full text-[var(--text-secondary)]">
-                        <FaComments className="text-5xl mb-4 opacity-20" aria-hidden="true" />
+                        <FaComments className="text-5xl mb-4 opacity-20" />
                         <p className="text-sm">No active chats</p>
                         <button
                             type="button"
@@ -96,7 +93,7 @@ const ThreadSwitcher = ({
                         </button>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-2 gap-3" role="list">
+                    <div className="grid grid-cols-2 gap-3">
                         {sessions.map((session) => {
                             const isActive = session.id === activeSessionId;
                             const messagePreview = getMessagePreview(session);
@@ -104,8 +101,6 @@ const ThreadSwitcher = ({
                             return (
                                 <div
                                     key={session.id}
-                                    role="listitem"
-                                    aria-selected={isActive}
                                     tabIndex={0}
                                     className={`
                                         relative flex flex-col rounded-xl overflow-hidden cursor-pointer
@@ -143,7 +138,7 @@ const ThreadSwitcher = ({
                                                 : 'bg-[var(--bg-secondary)] text-[var(--brand-primary)]'
                                             }
                                         `}>
-                                            <FaShip aria-hidden="true" />
+                                            <FaShip />
                                         </div>
 
                                         <span className={`
@@ -153,9 +148,9 @@ const ThreadSwitcher = ({
                                             {session.title || "New Chat"}
                                         </span>
 
+                                        {/* ✅ FIXED: Removed stray backtick and brace */}
                                         <button
                                             type="button"
-                                            aria-label={`Close chat ${session.title || 'New Chat'}`}
                                             className={`
                                                 p-1 rounded-full transition-colors shrink-0
                                                 ${isActive
@@ -167,8 +162,9 @@ const ThreadSwitcher = ({
                                                 e.stopPropagation();
                                                 onCloseSession(session.id);
                                             }}
+                                            aria-label="Close session"
                                         >
-                                            <FaXmark className="text-[10px]" aria-hidden="true" />
+                                            <FaXmark className="text-[10px]" />
                                         </button>
                                     </div>
 
@@ -193,14 +189,14 @@ const ThreadSwitcher = ({
                                             </div>
                                         ) : (
                                             <div className="h-full flex flex-col items-center justify-center text-[var(--text-tertiary)]">
-                                                <FaComments className="text-2xl mb-1 opacity-30" aria-hidden="true" />
+                                                <FaComments className="text-2xl mb-1 opacity-30" />
                                                 <span className="text-[9px]">No messages</span>
                                             </div>
                                         )}
 
                                         {session.isThinking && (
                                             <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 rounded-full bg-[var(--brand-primary)]/10 text-[var(--brand-primary)]">
-                                                <FaSpinner className="text-[8px] animate-spin" aria-hidden="true" />
+                                                <FaSpinner className="text-[8px] animate-spin" />
                                                 <span className="text-[8px] font-medium">Thinking...</span>
                                             </div>
                                         )}
@@ -219,4 +215,4 @@ const ThreadSwitcher = ({
     );
 };
 
-export default ThreadSwitcher;
+export default SessionSwitcher;

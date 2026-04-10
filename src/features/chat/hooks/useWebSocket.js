@@ -9,15 +9,14 @@ import { useWebSocketService } from '../context/WebSocketContext';
  * 1. Subscription to the shared WebSocket service.
  * 2. Processing incoming streaming chunks (legacy & advanced formats).
  * 3. Managing thinking steps, tool calls, and metrics display.
- * 4. Automatic connection/disconnection of threads based on active tabs.
- * 5. Session promotion (local UUID to backend ID) and sidebar synchronization.
+ * 4. Automatic connection/disconnection of sessions based on active tabs.
+ * 5. Session management and sidebar synchronization.
  * 
  * @param {Array} activeSessions - List of open chat sessions
  * @param {Function} setActiveSessions - State setter for sessions
  * @param {string} activeSessionId - Current active session ID
- * @param {Function} onThreadsChanged - Callback to refresh thread history
- * @param {Function} promoteSession - Callback to finalize a new session ID
- * @param {Function} moveThreadToTop - Callback to reorder the sidebar
+ * @param {Function} onSessionsChanged - Callback to refresh session history
+ * @param {Function} moveSessionToTop - Callback to reorder the session history in the sidebar
  * 
  * @returns {Object} { sendMessage }
  */
@@ -25,9 +24,8 @@ export const useWebSocket = (
     activeSessions,
     setActiveSessions,
     activeSessionId,
-    onThreadsChanged,
-    promoteSession,
-    moveThreadToTop
+    onSessionsChanged,
+    moveSessionToTop
 ) => {
     const webSocketService = useWebSocketService();
 
@@ -51,11 +49,10 @@ export const useWebSocket = (
     const handleMessage = useCallback((sessionId, data) => {
         try {
             if (!sessionId) return;
-
-            let promotionInfo = null;
-            let shouldRefreshThreads = false;
-            let shouldMoveToTop = false;
-            let moveToTopId = null;
+ 
+            let shouldRefreshSessions = false;
+            let shouldMoveSessionToTop = false;
+            let moveSessionToTopId = null;
 
             // --- DEBOUNCED STREAMING HANDLER ---
             // Consolidates rapid-fire text chunks into a single periodic update
@@ -72,7 +69,7 @@ export const useWebSocket = (
 
                 if (chunkToAppend) {
                     pendingChunksRef.current[sessionId] = (pendingChunksRef.current[sessionId] || '') + chunkToAppend;
-
+ 
                     if (!streamTimerRef.current) {
                         streamTimerRef.current = setTimeout(() => {
                             const snapshot = { ...pendingChunksRef.current };
@@ -82,11 +79,11 @@ export const useWebSocket = (
                             setActiveSessions(prev => prev.map(session => {
                                 const pending = snapshot[session.id];
                                 if (!pending) return session;
-
+ 
                                 const msgs = [...session.messages];
                                 const lastIdx = msgs.length - 1;
                                 let lMsg = msgs[lastIdx];
-
+ 
                                 if (lMsg?.role === 'assistant' && lMsg.isStreaming) {
                                     msgs[lastIdx] = { ...lMsg, content: lMsg.content + pending };
                                 } else {
@@ -98,7 +95,7 @@ export const useWebSocket = (
                                         timestamp: Date.now()
                                     });
                                 }
-                                return { ...session, messages: msgs };
+                                return { ...session, isNew: false, messages: msgs };
                             }));
                         }, 60);
                     }
@@ -107,10 +104,11 @@ export const useWebSocket = (
             }
             // ------------------------------------
 
-            setActiveSessions(prev => prev.map(s => {
-                if (s.id !== sessionId) return s;
+            setActiveSessions(prev => {
+                return prev.map(s => {
+                    if (s.id !== sessionId) return s;
 
-                const messages = [...s.messages];
+                    const messages = [...s.messages];
                 let lastMsgIndex = messages.length - 1;
                 let lastMsg = messages[lastMsgIndex];
 
@@ -146,33 +144,29 @@ export const useWebSocket = (
                     const cleanChunk = typeof chunk === 'string' ? chunk.replace('@//done//@', '') : chunk;
 
                     if (isDone) {
-                        if (lastMsg?.isStreaming) {
-                            messages[lastMsgIndex] = { ...lastMsg, isStreaming: false, isNew: false };
-                        }
-
-                        const isNewChat = s.isNew;
-                        const backendSessionId = data.threadId || data.thread_id || data.session_id;
-
-                        // Identify if this local session needs to be promoted to a backend thread
-                        if (isNewChat && backendSessionId && backendSessionId !== s.id) {
-                            promotionInfo = { oldId: s.id, newId: backendSessionId };
+                        if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
+                            messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + cleanChunk, isStreaming: false, isNew: false };
+                        } else if (cleanChunk) {
+                            messages.push({
+                                role: 'assistant',
+                                content: cleanChunk,
+                                isStreaming: false,
+                                isNew: true,
+                                timestamp: Date.now()
+                            });
                         }
 
                         if (hasSentMessageRef.current) {
                             hasSentMessageRef.current = false;
-                            if (isNewChat) {
-                                shouldRefreshThreads = true;
+                            if (s.isNew) {
+                                shouldRefreshSessions = true;
                             } else {
-                                shouldMoveToTop = true;
-                                moveToTopId = s.id;
+                                shouldMoveSessionToTop = true;
+                                moveSessionToTopId = s.id;
                             }
                         }
-
-                        // If promoting, update id and isNew directly in the return
-                        if (promotionInfo) {
-                            return { ...s, id: backendSessionId, sessionId: backendSessionId, isNew: false, isThinking: false, messages };
-                        }
-                        return { ...s, isThinking: false, messages };
+ 
+                        return { ...s, isNew: false, isThinking: false, messages };
                     } else if (cleanChunk) {
                         if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
                             messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + cleanChunk };
@@ -302,27 +296,17 @@ export const useWebSocket = (
                             messages[lastMsgIndex] = { ...lastMsg, isStreaming: false, isNew: true };
                         }
 
-                        const isNewChatAdv = s.isNew;
-                        const backendIdAdv = data.threadId || data.thread_id || data.session_id;
-
-                        if (isNewChatAdv && backendIdAdv && backendIdAdv !== s.id) {
-                            promotionInfo = { oldId: s.id, newId: backendIdAdv };
-                        }
-
                         if (hasSentMessageRef.current) {
                             hasSentMessageRef.current = false;
-                            if (isNewChatAdv) {
-                                shouldRefreshThreads = true;
+                            if (s.isNew) {
+                                shouldRefreshSessions = true;
                             } else {
-                                shouldMoveToTop = true;
-                                moveToTopId = s.id;
+                                shouldMoveSessionToTop = true;
+                                moveSessionToTopId = s.id;
                             }
                         }
-
-                        if (promotionInfo) {
-                            return { ...s, id: backendIdAdv, sessionId: backendIdAdv, isNew: true, isThinking: false, messages };
-                        }
-                        return { ...s, isThinking: false, messages };
+ 
+                        return { ...s, isNew: false, isThinking: false, messages };
                     }
 
                     case 'timing':
@@ -341,27 +325,24 @@ export const useWebSocket = (
                     default:
                         return s;
                 }
-            }));
+                });
+            });
 
             // EXECUTE SIDE EFFECTS OUTSIDE STATE SETTER
-            if (promotionInfo) {
-                promoteSession?.(promotionInfo.oldId, promotionInfo.newId);
-            }
-
-            if (shouldRefreshThreads && onThreadsChanged) {
+            if (shouldRefreshSessions && onSessionsChanged) {
                 // Refresh sidebar with a slight delay to allow backend persistence to settle
                 setTimeout(async () => {
-                    await onThreadsChanged();       // page 1
-                    await onThreadsChanged(true);   // page 2
+                    await onSessionsChanged();       // page 1
+                    await onSessionsChanged(true);   // page 2
                 }, 800);
-            } else if (shouldMoveToTop) {
-                moveThreadToTop?.(moveToTopId);
+            } else if (shouldMoveSessionToTop) {
+                moveSessionToTop?.(moveSessionToTopId);
             }
 
         } catch (err) {
             console.error('[useWebSocket] Message processing failed:', err);
         }
-    }, [setActiveSessions, onThreadsChanged, promoteSession, moveThreadToTop]);
+    }, [setActiveSessions, onSessionsChanged, moveSessionToTop]);
 
     /**
      * Effect: Subscribe to the singleton WebSocket service.

@@ -76,8 +76,8 @@ const Tooltip = ({
     // Handle dynamic repositioning on resize or scroll
     useEffect(() => {
         if (isVisible) {
-            // Wrapping in requestAnimationFrame avoids the "cascading render" lint warning
-            // by deferring the state update until the browser is ready to paint.
+            // If you call a function manually, it might run in the middle of a refresh, causing "screen tearing". 
+            // requestAnimationFrame (rAF) syncs your code perfectly with the monitor's refresh rate.
             requestAnimationFrame(updatePosition);
             window.addEventListener('resize', updatePosition);
 
@@ -134,8 +134,8 @@ const Tooltip = ({
                 onBlur={hideTooltip}
                 onClick={hideTooltip}
                 className={`inline-block ${className}`}
-                aria-describedby={isVisible ? tooltipId : undefined}
-                aria-haspopup="true"
+                
+               
             >
                 {children}
             </div>
@@ -143,7 +143,7 @@ const Tooltip = ({
             {isVisible && createPortal(
                 <div
                     id={tooltipId}
-                    role="tooltip"
+                   
                     className="fixed z-[10000] px-3 py-1.5 text-xs font-medium bg-white dark:bg-[var(--bg-tertiary)] text-[var(--text-primary)] border border-[var(--border-color)] rounded-md shadow-lg pointer-events-none transition-opacity duration-200 animate-in fade-in"
                     style={{
                         top: coords.top,

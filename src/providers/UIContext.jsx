@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useContext, useState, useCallback, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 
 /**
  * UIContext
@@ -24,11 +24,14 @@ export const UIProvider = ({ children }) => {
 
     // ── PANEL STATE ──
     const [searchPanelOpen, setSearchPanelOpen] = useState(false);
-    const [threadSwitcherOpen, setThreadSwitcherOpen] = useState(false);
+    const [sessionSwitcherOpen, setSessionSwitcherOpen] = useState(false);
 
     // ── FEATURE MODALS ──
     const [showFAQ, setShowFAQ] = useState(false);
     const [langOpen, setLangOpen] = useState(false);
+    const [notification, setNotification] = useState(null);
+    const [isOffline, setIsOffline] = useState(!navigator.onLine);
+    const notificationTimer = useRef(null);
 
     // ── ACTIONS & HANDLERS ──
     const toggleSidebar = useCallback(() => setSidebarCollapsed(prev => !prev), []);
@@ -50,6 +53,14 @@ export const UIProvider = ({ children }) => {
         if (window.innerWidth <= 768) setMobileSidebarOpen(false);
     }, []);
 
+    const showNotification = useCallback((msg, duration = null) => {
+        setNotification(msg);
+        if (notificationTimer.current) clearTimeout(notificationTimer.current);
+        if (duration) {
+            notificationTimer.current = setTimeout(() => setNotification(null), duration);
+        }
+    }, []);
+
     /**
      * Global keyboard shortcuts (Escape key) to dismiss open panels/modals.
      */
@@ -58,13 +69,31 @@ export const UIProvider = ({ children }) => {
             if (e.key === 'Escape') {
                 setSearchPanelOpen(false);
                 setLangOpen(false);
-                setThreadSwitcherOpen(false);
+                setSessionSwitcherOpen(false);
                 setShowFAQ(false);
                 setMobileSidebarOpen(false);
+                setNotification(null);
             }
         };
+
+        const handleOnline = () => {
+            console.log('Browser online');
+            setIsOffline(false);
+        };
+        const handleOffline = () => {
+            console.log('Browser offline');
+            setIsOffline(true);
+        };
+
         window.addEventListener('keydown', handleKeyDown);
-        return () => window.removeEventListener('keydown', handleKeyDown);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        return () => {
+            window.removeEventListener('keydown', handleKeyDown);
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
     }, []);
 
     // ── CONTEXT VALUE MEMOIZATION ──
@@ -74,7 +103,7 @@ export const UIProvider = ({ children }) => {
         sidebarCollapsed,
         mobileSidebarOpen,
         searchPanelOpen,
-        threadSwitcherOpen,
+        sessionSwitcherOpen,
         showFAQ,
         langOpen,
 
@@ -89,15 +118,18 @@ export const UIProvider = ({ children }) => {
         openSearchPanel,
         closeSearchPanel,
 
-        setThreadSwitcherOpen,
+        setSessionSwitcherOpen,
         setShowFAQ,
+        setLangOpen,
         openFAQ,
-        setLangOpen
+        notification,
+        showNotification,
+        isOffline
     }), [
         sidebarCollapsed,
         mobileSidebarOpen,
         searchPanelOpen,
-        threadSwitcherOpen,
+        sessionSwitcherOpen,
         showFAQ,
         langOpen,
         toggleSidebar,
@@ -105,7 +137,12 @@ export const UIProvider = ({ children }) => {
         closeMobileSidebar,
         openSearchPanel,
         closeSearchPanel,
-        openFAQ
+        openFAQ,
+        setLangOpen,
+        setShowFAQ,
+        notification,
+        showNotification,
+        isOffline
     ]);
 
     return (

@@ -1,8 +1,19 @@
 import { useRef, useCallback } from 'react';
-import { uuidv4 } from '../../../utils/uuid.v4.js';
-// CHANGED: Replaced validateImage, compressImage, uploadImageToSupabase
-//          with validateFile, compressImage, uploadFileToBackend
+
+import { useUI } from '../../../providers/UIContext';
 import { getLanguageCode } from '../../../config/languages';
+
+
+/**
+ * Internally used UUID v4 generator.
+ */
+const uuidv4 = () => {
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+        const r = (Math.random() * 16) | 0;
+        const v = c === "x" ? r : (r & 0x3) | 0x8;
+        return v.toString(16);
+    });
+};
 
 /**
  * useChatActions Hook
@@ -17,7 +28,7 @@ import { getLanguageCode } from '../../../config/languages';
  * @param {Function} params.updateActiveSession - Shorthand to update fields of the active session
  * @param {Function} params.sendMessage - WebSocket function to transmit outgoing messages
  * @param {Object} params.selectedLang - Currently selected language object for STT/TTS
- * @param {Function} params.deleteThread - Function to delete a thread from the backend
+ * @param {Function} params.deleteSession - Function to delete a session from the backend
  * @param {Array} params.activeSessions - All currently active/open sessions
  * @param {Function} params.handleTabClose - Callback to close a specific tab
  * @param {Function} params.handleNewChat - Callback to initialize a fresh chat session
@@ -34,7 +45,7 @@ export const useChatActions = ({
     updateActiveSession,
     sendMessage,
     selectedLang,
-    deleteThread,
+    deleteSession,
     activeSessions,
     handleTabClose,
     handleNewChat,
@@ -42,7 +53,11 @@ export const useChatActions = ({
     closeMobileSidebar,
     setFocusTrigger
 }) => {
+
+    // Prevent a single message from being sent multiple times
     const isSendingRef = useRef(false);
+
+    const { showNotification } = useUI();
 
     /**
      * Builds the files array for the gpt_query payload from multiple upload results.
@@ -75,6 +90,13 @@ export const useChatActions = ({
      */
     const handleSend = useCallback(async (text, options = {}) => {
         if (isSendingRef.current) return;
+
+        // ── Early Offline Guard ───────────────────────────────────────────
+        if (!navigator.onLine) {
+            showNotification('No internet', 3000);
+            return;
+        }
+
         isSendingRef.current = true;
 
         try {
@@ -152,7 +174,7 @@ export const useChatActions = ({
                     ? [csBuddyData.email]
                     : (custBranchData.emails || []),
                 questionAnswer: uuidv4(),
-                session_id: activeSession.sessionId || '',
+                session_id: activeSession.sessionId || activeSession.id,
                 language: getLanguageCode(selectedLang?.name || 'English (IN)'),
             };
 
@@ -192,7 +214,7 @@ export const useChatActions = ({
         } finally {
             isSendingRef.current = false;
         }
-    }, [activeSession, activeSessionId, setActiveSessions, sendMessage, selectedLang]);
+    }, [activeSession, activeSessionId, setActiveSessions, sendMessage, selectedLang, showNotification]);
 
     /**
      * Retries the last user message.
@@ -238,21 +260,21 @@ export const useChatActions = ({
     }, [updateActiveSession, closeSearchPanel, closeMobileSidebar, setFocusTrigger]);
 
 
-    // ── Delete chat ───────────────────────────────────────────────────────────
+    // ── Delete session ────────────────────────────────────────────────────────
     /**
-     * Coordinates chat deletion with server-side removal and local state cleanup.
+     * Coordinates session deletion with server-side removal and local state cleanup.
      */
-    const handleDeleteChat = useCallback(async (sessionId) => {
+    const handleDeleteSession = useCallback(async (sessionId) => {
         if (!sessionId) return;
 
-        const success = await deleteThread(sessionId);
+        const success = await deleteSession(sessionId);
         if (success) {
             const isActive = activeSessions.some(s => s.id === sessionId);
             if (isActive) {
                 handleTabClose(sessionId);
             }
         }
-    }, [deleteThread, activeSessions, handleTabClose]);
+    }, [deleteSession, activeSessions, handleTabClose]);
 
 
     // ── Search: start new chat (kept from previous code) ─────────────────────
@@ -280,7 +302,7 @@ export const useChatActions = ({
         handleTypingComplete,
         handleFeatureClick,
         handleSearchResultClick,
-        handleDeleteChat,
+        handleDeleteSession,
         handleSearchStartChat,
     };
 };

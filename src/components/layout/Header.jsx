@@ -10,9 +10,10 @@ import { useAuth } from '../../features/auth/context/AuthContext';
  * @param {Function} props.toggleMobileSidebar - Toggles the visibility of the mobile sidebar.
  * @param {Object} props.selectedLang - The currently active language object (contains name, flag, etc).
  * @param {Function} props.onToggleLang - Toggles the language selection overlay/mode.
- * @param {Function} props.onOpenThreadSwitcher - Opens the conversation thread switcher.
+ * @param {Function} props.onOpenSessionSwitcher - Opens the conversation session switcher.
  */
-const Header = ({ toggleMobileSidebar, selectedLang, onToggleLang, onOpenThreadSwitcher }) => {
+const Header = ({ toggleMobileSidebar, selectedLang, onToggleLang, onOpenSessionSwitcher }) => {
+
     const { logout } = useAuth();
 
     return (
@@ -25,15 +26,15 @@ const Header = ({ toggleMobileSidebar, selectedLang, onToggleLang, onOpenThreadS
                     type="button"
                     className="menu-btn lg:hidden flex items-center justify-center w-9 h-9 text-lg text-[var(--text-primary)] cursor-pointer hover:bg-[var(--bg-tertiary)] rounded-lg transition-colors"
                     onClick={toggleMobileSidebar}
-                    aria-label="Toggle mobile menu"
+                    aria-label="Open menu"
                 >
-                    <FaBars aria-hidden="true" />
+                    <FaBars />
                 </button>
 
                 {/* Application Branding */}
                 <div className="app-brand flex items-center gap-2">
                     <div className="hidden xs:flex w-8 h-8 md:w-9 md:h-9 rounded-lg bg-gradient-to-br from-[var(--brand-primary)] to-[var(--brand-highlight)] items-center justify-center text-white shadow-sm">
-                        <FaShip className="text-sm md:text-base" aria-hidden="true" />
+                        <FaShip className="text-sm md:text-base" />
                     </div>
                     <div className="flex flex-col justify-center">
                         <h1 className="text-base md:text-lg font-bold leading-none tracking-tight font-display text-[var(--text-primary)]">
@@ -54,26 +55,26 @@ const Header = ({ toggleMobileSidebar, selectedLang, onToggleLang, onOpenThreadS
 
                 {/* Mobile/Tablet Adaptive Controls */}
                 <div className="mobile-ui-visible flex items-center gap-1">
-                    {/* Thread Switcher Interaction */}
-                    {onOpenThreadSwitcher && (
+                    {/* Session Switcher Interaction */}
+                    {onOpenSessionSwitcher && (
                         <button
                             type="button"
                             className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--brand-primary)] transition-all"
-                            onClick={onOpenThreadSwitcher}
-                            title="Switch Chats"
-                            aria-label="Switch conversation threads"
+                            onClick={onOpenSessionSwitcher}
+                            title="Switch Sessions"
+                            aria-label="Switch chat sessions"
                         >
-                            <MdLibraryAdd className="text-xl rotate-180" aria-hidden="true" />
+                            <MdLibraryAdd className="text-xl rotate-180" />
                         </button>
                     )}
 
-                    {/* Quick Language Toggle */}
+                    {/* Quick Language Toggle - ✅ FIXED: removed stray backtick and brace */}
                     <button
                         type="button"
                         className="flex items-center justify-center w-8 h-8 rounded-lg overflow-hidden border border-transparent hover:border-[var(--border-color)] transition-all"
                         onClick={onToggleLang}
                         title={selectedLang?.name || 'Language'}
-                        aria-label={`Change language, current: ${selectedLang?.name || 'English'}`}
+                        aria-label="Change language"
                     >
                         <img
                             src={selectedLang?.flag || ""}
@@ -88,21 +89,21 @@ const Header = ({ toggleMobileSidebar, selectedLang, onToggleLang, onOpenThreadS
                         className="flex items-center justify-center w-8 h-8 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-tertiary)] hover:text-[var(--brand-primary)] transition-all"
                         onClick={logout}
                         title="Logout"
-                        aria-label="Logout and return home"
+                        aria-label="Logout"
                     >
-                        <FaHouse className="text-base" aria-hidden="true" />
+                        <FaHouse className="text-base" />
                     </button>
                 </div>
 
                 {/* Expanded Desktop Controls */}
                 <div className="hidden desktop-ui-visible items-center gap-2.5">
-                    {/* Language Selection Picker */}
+                    {/* Language Selection Picker - ✅ FIXED: removed stray string and backtick/brace */}
                     <div className="relative p-[1px] rounded-full bg-gradient-to-r from-[var(--brand-primary)]/30 to-[var(--brand-highlight)]/30 hover:from-[var(--brand-primary)] hover:to-[var(--brand-highlight)] transition-all duration-300 group">
                         <button
                             type="button"
                             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-[var(--bg-card)] cursor-pointer h-full"
                             onClick={onToggleLang}
-                            aria-label={`Current language: ${selectedLang?.name || 'English'}. Click to change.`}
+                            aria-label="Change language"
                         >
                             <img src={selectedLang?.flag || ""} className="w-5 h-5 rounded-full object-cover shrink-0 border border-[var(--border-color)] shadow-sm" alt="" />
                             <span className="text-xs font-medium text-[var(--text-primary)] truncate group-hover:text-[var(--brand-primary)] transition-colors max-w-[80px]">
@@ -112,7 +113,7 @@ const Header = ({ toggleMobileSidebar, selectedLang, onToggleLang, onOpenThreadS
                     </div>
 
                     {/* Vertical Divider */}
-                    <div className="h-5 w-px bg-[var(--border-color)]" aria-hidden="true" />
+                    <div className="h-5 w-px bg-[var(--border-color)]" />
 
                     {/* Desktop Logout Trigger */}
                     <button
@@ -120,9 +121,9 @@ const Header = ({ toggleMobileSidebar, selectedLang, onToggleLang, onOpenThreadS
                         className="flex items-center justify-center w-9 h-9 rounded-lg hover:bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--brand-primary)] transition-all"
                         onClick={logout}
                         title="Logout"
-                        aria-label="Sign out of application"
+                        aria-label="Logout"
                     >
-                        <FaHouse className="text-lg" aria-hidden="true" />
+                        <FaHouse className="text-lg" />
                     </button>
                 </div>
             </div>
