@@ -506,8 +506,11 @@ const InputArea = ({
                         /* ── VOICE MODE UI (React Components Wrappers) ── */
                         <div className="flex flex-col items-center justify-center w-full min-h-[140px]">
                             {activeToken ? (
+
                                 <LiveKitRoom
-                                    serverUrl="wss://demo-xv7lww7p.livekit.cloud"
+                                    // serverUrl="wss://demo-xv7lww7p.livekit.cloud"
+                                    serverUrl="wss://eximgpt-8cistin7.livekit.cloud"
+
                                     token={activeToken}
                                     connect={true}
                                     audio={true} // Enabled by default to ensure mic is open on connect

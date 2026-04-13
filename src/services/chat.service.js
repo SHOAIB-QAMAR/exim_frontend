@@ -213,7 +213,9 @@ class ChatService {
             user_lang: mappedLangCode
         };
 
-        const response = await fetch(`https://newimgchatbotnew1.zipaworld.com/getToken`, {
+        // const response = await fetch(`https://newimgchatbotnew1.zipaworld.com/getToken`, {
+        const response = await fetch(`https://eximgptlivekitnew.devapi.zipaworld.com/getToken`, {
+
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
