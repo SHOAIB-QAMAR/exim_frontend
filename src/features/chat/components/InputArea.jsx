@@ -1,7 +1,7 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback, lazy, Suspense } from 'react';
 const CameraOverlay = lazy(() => import('./CameraOverlay'));
 import Tooltip from '../../../components/common/Tooltip';
-import ImageOverlay from '../../../components/common/ImageOverlay';
+import UniversalOverlay from '../../../components/common/UniversalOverlay';
 import { useUI } from '../../../providers/UIContext';
 import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark, FaFilePdf } from "react-icons/fa6";
 import { processAndUploadFile } from '../../../services/uploadService';
@@ -292,7 +292,7 @@ const InputArea = ({
     const { sidebarCollapsed, notification, showNotification, isOffline } = useUI();
     const [showAttachMenu, setShowAttachMenu] = useState(false);
     const [showCamera, setShowCamera] = useState(false);
-    const [showImageOverlay, setShowImageOverlay] = useState(false);
+    const [previewMedia, setPreviewMedia] = useState(null);
 
     // --- LiveKit Component State ---
     const [activeToken, setActiveToken] = useState(null);
@@ -483,7 +483,7 @@ const InputArea = ({
 
     return (
         <>
-            <ImageOverlay isOpen={showImageOverlay !== false} imageUrl={showImageOverlay} onClose={() => setShowImageOverlay(false)} />
+            <UniversalOverlay isOpen={!!previewMedia} imageUrl={previewMedia?.url} fileName={previewMedia?.fileName} onClose={() => setPreviewMedia(null)} />
             {/* ── CAMERA OVERLAY MODAL ── */}
             {showCamera && (
                 <Suspense fallback={null}>
@@ -574,13 +574,16 @@ const InputArea = ({
                                                         <img
                                                             src={p.url}
                                                             alt={p.name || p.filename || 'Selected attachment'}
-                                                            onClick={() => setShowImageOverlay(p.url)}
+                                                            onClick={() => setPreviewMedia({ url: p.url, fileName: p.name || p.filename })}
                                                             className="w-28 h-20 object-cover rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
                                                         />
                                                     </Tooltip>
                                                 ) : (
                                                     <Tooltip content={p.name || p.filename || 'Document'} position="bottom">
-                                                        <div className="inline-flex items-center gap-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg px-3 py-2 min-w-[150px] max-w-[220px]">
+                                                        <div 
+                                                            className="inline-flex items-center gap-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg px-3 py-2 min-w-[150px] max-w-[220px] cursor-pointer hover:bg-[var(--border-color)] transition-colors"
+                                                            onClick={() => setPreviewMedia({ url: p.url, fileName: p.name || p.filename })}
+                                                        >
                                                             <span className="text-lg">📄</span>
                                                             <div className="flex flex-col min-w-0">
                                                                 <span className="text-xs font-medium text-[var(--text-primary)] truncate">
@@ -655,7 +658,7 @@ const InputArea = ({
                                                     }}
                                                 >
                                                     <FaFilePdf className="text-[var(--brand-primary)] text-base" />
-                                                    Upload PDF
+                                                    Upload Document
                                                 </button>
                                                 <div className="h-px bg-[var(--border-color)]" />
                                                 <button
@@ -687,7 +690,7 @@ const InputArea = ({
                                         ref={pdfInputRef}
                                         hidden
                                         multiple
-                                        accept=".pdf,application/pdf"
+                                        accept=".pdf,application/pdf,.docx,.xlsx,.xls,.csv"
                                         onChange={handleFileChange}
                                     />
 

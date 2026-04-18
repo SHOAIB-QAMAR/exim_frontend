@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
-import ImageOverlay from '../../../components/common/ImageOverlay';
+import UniversalOverlay from '../../../components/common/UniversalOverlay';
 
 /**
  * MessageContent Component
@@ -15,7 +15,7 @@ import ImageOverlay from '../../../components/common/ImageOverlay';
  * @param {Function} props.onLinkClick - Callback fired when a link is clicked
  */
 const MessageContent = ({ content, onLinkClick }) => {
-    const [previewImage, setPreviewImage] = useState(null);
+    const [previewMedia, setPreviewMedia] = useState(null);
 
     // Memoize the custom markdown component overrides so ReactMarkdown doesn't unnecessarily remount the entire DOM tree on every single keystroke or stream chunk.
     const components = useMemo(() => ({
@@ -31,13 +31,18 @@ const MessageContent = ({ content, onLinkClick }) => {
                 return <span>{children}</span>;
             }
 
+            const isDocument = href && typeof href === 'string' && (href.toLowerCase().endsWith('.pdf') || href.toLowerCase().endsWith('.docx') || href.toLowerCase().endsWith('.xlsx') || href.toLowerCase().endsWith('.xls') || href.toLowerCase().endsWith('.csv'));
+
             return (
                 <a
                     href={href}
-                    target={isExternal ? '_blank' : undefined}
-                    rel={isExternal ? 'noopener noreferrer' : undefined}
+                    target={isExternal && !isDocument ? '_blank' : undefined}
+                    rel={isExternal && !isDocument ? 'noopener noreferrer' : undefined}
                     onClick={(e) => {
-                        if (onLinkClick && href && !isMailto && !isTel) {
+                        if (isDocument) {
+                            e.preventDefault();
+                            setPreviewMedia({ url: href, fileName: href.split('/').pop() });
+                        } else if (onLinkClick && href && !isMailto && !isTel) {
                             e.preventDefault();
                             onLinkClick(href);
                         }
@@ -49,12 +54,12 @@ const MessageContent = ({ content, onLinkClick }) => {
             );
         },
 
-        // Custom Image Handler - ✅ FIXED: removed stray backtick and brace
+        // Custom Image Handler
         img: ({ src, alt, ...rest }) => (
             <button
                 type="button"
                 className="block w-full text-left border-none bg-transparent p-0 mt-2 mb-2 focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] rounded-md"
-                onClick={() => setPreviewImage(src)}
+                onClick={() => setPreviewMedia({ url: src })}
                 title="Click to expand"
                 aria-label="Expand image"
             >
@@ -104,10 +109,11 @@ const MessageContent = ({ content, onLinkClick }) => {
                 </ReactMarkdown>
             </div>
 
-            <ImageOverlay
-                isOpen={!!previewImage}
-                imageUrl={previewImage}
-                onClose={() => setPreviewImage(null)}
+            <UniversalOverlay
+                isOpen={!!previewMedia}
+                imageUrl={previewMedia?.url}
+                fileName={previewMedia?.fileName}
+                onClose={() => setPreviewMedia(null)}
             />
         </div>
     );

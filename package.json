@@ -17,6 +17,8 @@
     "@tailwindcss/vite": "^4.1.18",
     "browser-image-compression": "^2.0.2",
     "livekit-client": "^2.18.0",
+    "mammoth": "^1.12.0",
+    "papaparse": "^5.5.3",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-icons": "^5.5.0",
@@ -25,7 +27,8 @@
     "react-webcam": "^7.2.0",
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

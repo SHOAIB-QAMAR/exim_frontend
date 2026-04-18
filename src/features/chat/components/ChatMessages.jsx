@@ -4,7 +4,7 @@ import AIProcessingDropdown from './AIProcessingDropdown';
 import LogisticsLoader from '../../../components/common/LogisticsLoader';
 import InputArea from './InputArea';
 import API_CONFIG from '../../../services/api.config';
-import ImageOverlay from '../../../components/common/ImageOverlay';
+import UniversalOverlay from '../../../components/common/UniversalOverlay';
 import { FaFilePdf, FaPlus } from 'react-icons/fa';
 import { getCachedUrl } from '../../../services/fileCache';
 
@@ -451,7 +451,7 @@ const ChatMessages = ({
                 </div>
             </div>
 
-            <ImageOverlay
+            <UniversalOverlay
                 isOpen={!!previewImage}
                 imageUrl={previewImage}
                 onClose={() => setPreviewImage(null)}

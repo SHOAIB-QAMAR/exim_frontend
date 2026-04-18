@@ -4,10 +4,16 @@ import API_CONFIG from './api.config';
 // ─── Accepted types ───────────────────────────────────────────────────────────
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif'];
 const ALLOWED_PDF_TYPES = ['application/pdf'];
-const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_PDF_TYPES];
+const ALLOWED_DOC_TYPES = [
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document', // .docx
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+    'application/vnd.ms-excel', // .xls
+    'text/csv' // .csv
+];
+const ALLOWED_TYPES = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_PDF_TYPES, ...ALLOWED_DOC_TYPES];
 
 const MAX_IMAGE_MB = 10;   // original image cap before compression
-const MAX_PDF_MB = 20;   // PDF cap (no compression)
+const MAX_DOC_MB = 20;     // Document cap (no compression)
 
 // ─── Validators ──────────────────────────────────────────────────────────────
 
@@ -32,18 +38,28 @@ export const validateImage = (file) => {
 export const validateFile = (file) => {
     // Normalise octet-stream by extension
     let effectiveType = file.type;
-    if (effectiveType === 'application/octet-stream') {
+    if (effectiveType === 'application/octet-stream' || !effectiveType) {
         const ext = file.name.split('.').pop().toLowerCase();
-        const map = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
+        const map = { 
+            pdf: 'application/pdf', 
+            jpg: 'image/jpeg', 
+            jpeg: 'image/jpeg', 
+            png: 'image/png', 
+            webp: 'image/webp',
+            docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            xls: 'application/vnd.ms-excel',
+            csv: 'text/csv'
+        };
         effectiveType = map[ext] || effectiveType;
     }
 
     if (!ALLOWED_TYPES.includes(effectiveType)) {
-        throw new Error('Unsupported file type. Please upload a PDF, JPEG, PNG, or WEBP.');
+        throw new Error('Unsupported file type. Please upload a PDF, DOCX, XLSX, CSV, JPEG, PNG, or WEBP.');
     }
 
-    const isPdf = ALLOWED_PDF_TYPES.includes(effectiveType);
-    const maxMB = isPdf ? MAX_PDF_MB : MAX_IMAGE_MB;
+    const isDoc = ALLOWED_PDF_TYPES.includes(effectiveType) || ALLOWED_DOC_TYPES.includes(effectiveType);
+    const maxMB = isDoc ? MAX_DOC_MB : MAX_IMAGE_MB;
 
     if (file.size > maxMB * 1024 * 1024) {
         throw new Error(`File is too large. Maximum size is ${maxMB}MB.`);
@@ -59,8 +75,8 @@ export const validateFile = (file) => {
  * PDFs are passed through unchanged.
  */
 export const compressImage = async (file) => {
-    const isPdf = ALLOWED_PDF_TYPES.includes(file.type);
-    if (isPdf) return file; // no compression for PDFs
+    const isDoc = ALLOWED_PDF_TYPES.includes(file.type) || ALLOWED_DOC_TYPES.includes(file.type) || ALLOWED_DOC_TYPES.some((type) => file.name.endsWith(type.split('.').pop()));
+    if (isDoc) return file; // no compression for documents
 
     try {
         const compressed = await imageCompression(file, {
@@ -121,13 +137,17 @@ export const uploadFileToBackend = async (file) => {
     }
 
     // Attach a local blob URL so the UI can show a preview immediately.
-    // Only useful for images — for PDFs the UI shows an icon chip instead.
+    // Only useful for images — for documents the UI shows an icon chip instead.
     const isImage = data.file_type === 'image';
     const previewBlobUrl = isImage ? URL.createObjectURL(file) : null;
+    
+    // We can infer local file_type properly if backend doesn't detect it perfectly 
+    // or we can just rely on the existing backend behavior, mapping documents:
+    const finalFileType = isImage ? 'image' : (ALLOWED_DOC_TYPES.includes(file.type) || file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.csv') ? 'document' : data.file_type);
 
     return {
         url: data.url,
-        file_type: data.file_type,       // "image" | "pdf"
+        file_type: finalFileType,             // "image" | "pdf" | "document"
         filename: data.filename,
         page_count: data.page_count,
         truncated: data.truncated,
@@ -147,10 +167,10 @@ export const uploadFileToBackend = async (file) => {
 export const processAndUploadFile = async (file) => {
     validateFile(file);
 
-    const isPdf = ALLOWED_PDF_TYPES.includes(file.type) ||
-        (file.type === 'application/octet-stream' && file.name.endsWith('.pdf'));
+    const isDoc = ALLOWED_PDF_TYPES.includes(file.type) || ALLOWED_DOC_TYPES.includes(file.type) || 
+        ((file.type === 'application/octet-stream' || !file.type) && (file.name.endsWith('.pdf') || file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.csv') || file.name.endsWith('.xls')));
 
-    const fileToUpload = isPdf ? file : await compressImage(file);
+    const fileToUpload = isDoc ? file : await compressImage(file);
     return await uploadFileToBackend(fileToUpload);
 };
 
