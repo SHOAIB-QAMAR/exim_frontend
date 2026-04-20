@@ -69,16 +69,12 @@ const ImageOverlay = ({ isOpen, imageUrl, altText = "Media preview", onClose }) 
             ref={wrapperRef}
             className={`${positionClass} z-[10000] bg-[var(--bg-primary)]/80 backdrop-blur-md animate-in fade-in duration-300 flex items-center justify-center p-4 md:p-8`}
             onClick={onClose}
-           
-           
-           
         >
             <button
                 type="button"
                 className="absolute top-4 right-4 md:top-6 md:right-6 bg-[var(--bg-card)]/50 hover:bg-[var(--bg-card)] text-[var(--text-primary)] rounded-full transition-all shadow-lg z-[10001] border border-[var(--border-color)]"
                 onClick={(e) => { e.stopPropagation(); onClose(); }}
                 title="Close"
-               
             >
                 <FaXmark className="text-lg md:text-xl" />
             </button>

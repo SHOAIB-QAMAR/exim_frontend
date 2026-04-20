@@ -5,7 +5,7 @@ import LogisticsLoader from '../../../components/common/LogisticsLoader';
 import InputArea from './InputArea';
 import API_CONFIG from '../../../services/api.config';
 import ImageOverlay from '../../../components/common/ImageOverlay';
-import { FaFilePdf, FaPlus } from 'react-icons/fa';
+import { FaFilePdf, FaPlus } from 'react-icons/fa6';
 import { getCachedUrl } from '../../../services/fileCache';
 
 /** Thumbnail that caches its remote src as a blob for instant re-renders. */

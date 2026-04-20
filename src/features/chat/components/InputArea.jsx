@@ -566,32 +566,34 @@ const InputArea = ({
 
                                 {/* ── ATTACHMENTS PREVIEW INSIDE INPUT ── */}
                                 {previewUrls.length > 0 && (
-                                    <div className="px-3 pt-3 pb-1 flex flex-wrap gap-3 overflow-x-auto max-w-full scrollbar-none">
+                                    <div className="px-3 pt-3 pb-2 flex flex-nowrap gap-3 overflow-x-auto max-w-full scrollbar-thin scrollbar-thumb-[var(--border-color)] scrollbar-track-transparent">
                                         {previewUrls.map((p, idx) => (
-                                            <div key={idx} className="relative inline-block shrink-0">
+                                            <div key={idx} className="relative inline-block shrink-0 group/attachment">
                                                 {p.type === 'image' ? (
                                                     <Tooltip content={p.name || p.filename || 'Image'} position="bottom">
                                                         <img
                                                             src={p.url}
                                                             alt={p.name || p.filename || 'Selected attachment'}
                                                             onClick={() => setShowImageOverlay(p.url)}
-                                                            className="w-28 h-20 object-cover rounded-lg border-2 border-[var(--brand-primary)]/30 shadow-sm cursor-pointer hover:opacity-90 transition-opacity"
+                                                            className="w-32 h-24 object-cover rounded-lg border border-[var(--border-color)] bg-black/5 cursor-pointer hover:opacity-90 transition-opacity"
                                                         />
                                                     </Tooltip>
                                                 ) : (
                                                     <Tooltip content={p.name || p.filename || 'Document'} position="bottom">
-                                                        <div className="inline-flex items-center gap-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg px-3 py-2 min-w-[150px] max-w-[220px]">
-                                                            <span className="text-lg">📄</span>
-                                                            <div className="flex flex-col min-w-0">
-                                                                <span className="text-xs font-medium text-[var(--text-primary)] truncate">
-                                                                    {p.name || 'Document'}
+                                                        <div 
+                                                            className="flex items-center gap-3 p-3 bg-black/10 border border-[var(--border-color)]/20 rounded-xl cursor-pointer hover:bg-black/20 transition-all group/pdf w-full min-w-[200px] max-w-xs pr-10"
+                                                            onClick={() => setShowImageOverlay(p.url)}
+                                                        >
+                                                            <div className="w-10 h-10 bg-[#f83c3c] rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover/pdf:scale-105">
+                                                                <FaFilePdf className="text-white text-xl" />
+                                                            </div>
+                                                            <div className="flex flex-col min-w-0 overflow-hidden pr-2 text-left">
+                                                                <span className="text-sm font-bold text-[var(--text-primary)] truncate">
+                                                                    {p.name || p.filename || 'Document.pdf'}
                                                                 </span>
-                                                                {p.page_count && (
-                                                                    <span className="text-[10px] text-[var(--text-secondary)]">
-                                                                        {p.page_count} page{p.page_count > 1 ? 's' : ''}
-                                                                        {p.truncated ? ' (truncated)' : ''}
-                                                                    </span>
-                                                                )}
+                                                                <span className="text-[11px] text-[var(--text-secondary)] font-medium tracking-wide uppercase flex gap-1">
+                                                                    PDF {p.page_count ? `• ${p.page_count} pages` : ''}
+                                                                </span>
                                                             </div>
                                                         </div>
                                                     </Tooltip>
@@ -599,7 +601,7 @@ const InputArea = ({
                                                 <button
                                                     type="button"
                                                     onClick={() => handleRemoveFile(idx)}
-                                                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors z-10"
+                                                    className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-md transition-colors z-20"
                                                     title="Remove attachment"
                                                 >
                                                     <FaXmark className="text-xs" />

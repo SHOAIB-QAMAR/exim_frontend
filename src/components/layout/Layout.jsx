@@ -268,7 +268,7 @@ const Layout = () => {
                             };
 
                             return (
-                                <div key={session.id} className={`w-full h-full ${isActive ? 'block' : 'hidden'}`}>
+                                <div key={session.id} className={`chat-tab-container relative w-full h-full ${isActive ? 'block' : 'hidden'}`}>
                                     {(session.messages.length === 0 && session.isNew && !isVoiceMode) ? (
                                         <WelcomeScreen
                                             focusInput={isActive ? focusInput : false}
