@@ -132,7 +132,7 @@ export const useChatActions = ({
 
             // PDFs are now entirely handled in the payload/files array, but we can store 
             // metadata in userMsg for history/UI rendering.
-            const pdfs = uploadResults.filter(r => r.file_type === 'pdf');
+            const pdfs = uploadResults.filter(r => r.file_type === 'pdf' || r.file_type === 'document');
             if (pdfs.length > 0) {
                 userMsg.pdfs = pdfs.map(p => ({ url: p.url, name: p.filename, ...p }));
             }

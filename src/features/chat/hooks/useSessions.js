@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import ChatService from '../../../services/chat.service';
 
-const DATA_LIMIT = 10;
+const DATA_LIMIT = 15;
 
 /**
  * useSessions Hook
@@ -57,8 +57,11 @@ export const useSessions = () => {
             if (apiHasMore) {
                 skipRef.current = currentSkip + DATA_LIMIT;
             }
+            
+            return newSessionsData;
         } catch (error) {
             console.error('[useSessions] Fetch failed:', error);
+            return null;
         } finally {
             setIsLoading(false);
             setIsFetchingMore(false);
@@ -77,10 +80,6 @@ export const useSessions = () => {
 
         const loadInitialPages = async () => {
             await fetchSessions(); // Load page 1
-            // Immediately load page 2 after page 1 finishes to prepopulate sidebar
-            if (skipRef.current > 0) {
-                await fetchSessions(true);
-            }
         };
 
         loadInitialPages();

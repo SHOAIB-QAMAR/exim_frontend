@@ -26,6 +26,7 @@ import { useChatActions } from '../../features/chat/hooks/useChatActions';
 // Config
 import LANGUAGES from '../../config/languages';
 import useKeyboardHeight from '../../hooks/useKeyboardHeight';
+import ChatService from '../../services/chat.service';
 
 /**
  * The main layout coordinator for the EximGPT application.
@@ -229,6 +230,34 @@ const Layout = () => {
                                     ));
                                 } else {
                                     updateSession(session.id, { isVoiceMode: false });
+
+                                    // 1. Refresh Sidebar History
+                                    fetchSessions().then(fetchedSessions => {
+                                        if (fetchedSessions) {
+                                            const fetchId = session.sessionId || session.id;
+                                            const updatedSession = fetchedSessions.find(s => s.sessionId === fetchId);
+                                            if (updatedSession?.title) {
+                                                updateSession(session.id, { title: updatedSession.title });
+                                            }
+                                        }
+                                    });
+
+                                    // 2. Fetch Tab Message History
+                                    const fetchId = session.sessionId || session.id;
+                                    ChatService.getSessionMessages(fetchId, 1)
+                                        .then(res => {
+                                            const refreshedMessages = res.messages || [];
+                                            updateSession(session.id, {
+                                                messages: refreshedMessages,
+                                                hasMoreMessages: res.hasMore || false,
+                                                messagePage: 1,
+                                                isNew: refreshedMessages.length === 0,
+                                                sessionId: res.sessionId || fetchId
+                                            });
+                                        })
+                                        .catch(err => {
+                                            console.error("[VoiceRefresh] Failed to fetch session messages:", err);
+                                        });
                                 }
                             };
 
@@ -237,7 +266,7 @@ const Layout = () => {
                             };
 
                             return (
-                                <div key={session.id} className={`w-full h-full ${isActive ? 'block' : 'hidden'}`}>
+                                <div id={`chat-tab-${session.id}`} key={session.id} className={`w-full h-full relative ${isActive ? 'block' : 'hidden'}`}>
                                     {(session.messages.length === 0 && session.isNew && !isVoiceMode) ? (
                                         <WelcomeScreen
                                             focusInput={isActive ? focusInput : false}

@@ -44,7 +44,7 @@ const DocxViewer = ({ file }) => {
     }
 
     return (
-        <div className="bg-white p-8 md:p-12 shadow-2xl rounded-lg max-w-4xl w-full text-[var(--text-primary)]" style={{ backgroundColor: 'white' }}>
+        <div className="bg-white p-8 md:p-12 shadow-2xl rounded-lg max-w-4xl w-full text-black" style={{ backgroundColor: 'white' }}>
             <div 
                 className="max-w-none docx-preview-content [&>p]:mb-4 [&>h1]:text-2xl [&>h1]:font-bold [&>h1]:mb-4 [&>h2]:text-xl [&>h2]:font-bold [&>h2]:mb-3 [&>table]:w-full [&>table]:border-collapse [&>td]:border [&>td]:border-gray-300 [&>td]:p-2 [&>ul]:list-disc [&>ul]:pl-6 [&>ul]:mb-4 [&>ol]:list-decimal [&>ol]:pl-6 [&>ol]:mb-4"
                 dangerouslySetInnerHTML={{ __html: html }} 

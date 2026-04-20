@@ -12,7 +12,7 @@ import { getCachedUrl } from '../../services/fileCache';
  * Supports images, PDF, DOCX, XLSX, and CSV documents.
  * Uses fileCache to avoid re-fetching on repeat opens.
  */
-const UniversalOverlay = ({ isOpen, imageUrl, fileName, altText = "Media preview", onClose }) => {
+const UniversalOverlay = ({ isOpen, imageUrl, fileName, altText = "Media preview", onClose, containerId = 'chat-area-container' }) => {
 
     const [availableWidth, setAvailableWidth] = useState(1200);
     const [cachedUrl, setCachedUrl] = useState(null);
@@ -52,7 +52,7 @@ const UniversalOverlay = ({ isOpen, imageUrl, fileName, altText = "Media preview
         return () => observer.disconnect();
     }, [isOpen]);
 
-    const container = isOpen ? (document.getElementById('chat-area-container') || document.body) : null;
+    const container = isOpen ? (document.getElementById(containerId) || document.getElementById('chat-area-container') || document.body) : null;
 
     useEffect(() => {
         if (!container || !isOpen) return;
@@ -70,7 +70,7 @@ const UniversalOverlay = ({ isOpen, imageUrl, fileName, altText = "Media preview
     const isPdf = sourceString.includes('.pdf');
     const isDocument = isPdf || isDocx || isXlsx || isCsv;
 
-    const isChatArea = container.id === 'chat-area-container';
+    const isChatArea = container.id === 'chat-area-container' || container.id.startsWith('chat-tab-');
     const positionClass = isChatArea ? 'absolute inset-0' : 'fixed inset-0';
     
     const renderViewer = () => {

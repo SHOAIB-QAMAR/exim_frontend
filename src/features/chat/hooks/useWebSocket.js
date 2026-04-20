@@ -333,7 +333,6 @@ export const useWebSocket = (
                 // Refresh sidebar with a slight delay to allow backend persistence to settle
                 setTimeout(async () => {
                     await onSessionsChanged();       // page 1
-                    await onSessionsChanged(true);   // page 2
                 }, 800);
             } else if (shouldMoveSessionToTop) {
                 moveSessionToTop?.(moveSessionToTopId);

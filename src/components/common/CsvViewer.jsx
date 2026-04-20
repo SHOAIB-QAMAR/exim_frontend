@@ -32,6 +32,7 @@ const CsvViewer = ({ file }) => {
                 });
             } catch (err) {
                 if (mounted) {
+                    console.log(err);
                     setError('Failed to load CSV document.');
                     setLoading(false);
                 }
@@ -43,7 +44,7 @@ const CsvViewer = ({ file }) => {
 
     if (loading) {
         return (
-             <div className="flex flex-col items-center gap-4 text-[var(--brand-primary)]">
+            <div className="flex flex-col items-center gap-4 text-[var(--brand-primary)]">
                 <span className="animate-spin w-10 h-10 border-4 border-current border-t-transparent rounded-full" />
                 <span className="text-sm font-medium animate-pulse">Loading CSV...</span>
             </div>

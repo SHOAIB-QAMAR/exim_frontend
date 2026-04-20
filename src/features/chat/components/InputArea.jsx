@@ -2,8 +2,9 @@ import React, { useRef, useMemo, useState, useEffect, useCallback, lazy, Suspens
 const CameraOverlay = lazy(() => import('./CameraOverlay'));
 import Tooltip from '../../../components/common/Tooltip';
 import UniversalOverlay from '../../../components/common/UniversalOverlay';
+import DocumentChip from '../../../components/common/DocumentChip';
 import { useUI } from '../../../providers/UIContext';
-import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark, FaFilePdf } from "react-icons/fa6";
+import { FaPlus, FaMicrophone, FaMicrophoneSlash, FaPaperPlane, FaXmark, FaImage, FaCamera, FaRotate, FaCircleCheck, FaVolumeHigh, FaVolumeXmark, FaFilePdf, FaPaperclip } from "react-icons/fa6";
 import { processAndUploadFile } from '../../../services/uploadService';
 import chatService from '../../../services/chat.service';
 import { getLanguageCode } from '../../../config/languages';
@@ -285,8 +286,7 @@ const InputArea = ({
     const notificationId = React.useId();
     const attachMenuId = React.useId();
     const textareaRef = useRef(null);
-    const imageInputRef = useRef(null);
-    const pdfInputRef = useRef(null);
+    const fileInputRef = useRef(null);
     const menuRef = useRef(null);
 
     const { sidebarCollapsed, notification, showNotification, isOffline } = useUI();
@@ -325,14 +325,16 @@ const InputArea = ({
 
         return selectedFiles.map(file => {
             if (typeof file === 'object' && file.url) {
-                if (file.file_type === 'pdf') return { type: 'pdf', url: file.url, name: file.filename, ...file };
+                if (file.file_type === 'pdf' || file.file_type === 'document') {
+                    return { type: 'document', url: file.url, name: file.filename || file.name, ...file };
+                }
                 return { type: 'image', url: file.previewBlobUrl || file.url, ...file };
             }
             if (file instanceof File) {
                 if (file.type.startsWith('image/')) {
                     try { return { type: 'image', url: URL.createObjectURL(file), file }; } catch { return null; }
                 }
-                return { type: 'pdf', file };
+                return { type: 'document', file };
             }
             return null;
         }).filter(Boolean);
@@ -437,18 +439,14 @@ const InputArea = ({
         if (files.length === 0) { e.target.value = ''; return; }
 
         for (const file of files) {
-            const isPdf = file.type === 'application/pdf' ||
-                (file.type === 'application/octet-stream' && file.name.toLowerCase().endsWith('.pdf'));
-            const label = isPdf ? 'document' : 'image';
-
             try {
-                showNotification(`Uploading ${label}...`, null);
+                showNotification(`Uploading file...`, null);
                 const uploadResult = await processAndUploadFile(file);
                 setSelectedFiles(prev => [...prev, uploadResult]);
-                showNotification(`${isPdf ? 'Document' : 'Image'} ready`, 3000);
+                showNotification(`File ready`, 3000);
             } catch (err) {
                 console.error('[InputArea] handleFileChange upload failed:', err);
-                showNotification(err.message || `${label} upload failed`, 3000);
+                showNotification(err.message || `File upload failed`, 3000);
             }
         }
         e.target.value = ''; // reset input so the same file can be re-selected
@@ -566,7 +564,7 @@ const InputArea = ({
 
                                 {/* ── ATTACHMENTS PREVIEW INSIDE INPUT ── */}
                                 {previewUrls.length > 0 && (
-                                    <div className="px-3 pt-3 pb-1 flex flex-wrap gap-3 overflow-x-auto max-w-full scrollbar-none">
+                                    <div className="px-3 pt-3 pb-1 flex flex-nowrap gap-3 overflow-x-auto max-w-full scrollbar-none items-center">
                                         {previewUrls.map((p, idx) => (
                                             <div key={idx} className="relative inline-block shrink-0">
                                                 {p.type === 'image' ? (
@@ -579,25 +577,14 @@ const InputArea = ({
                                                         />
                                                     </Tooltip>
                                                 ) : (
-                                                    <Tooltip content={p.name || p.filename || 'Document'} position="bottom">
-                                                        <div 
-                                                            className="inline-flex items-center gap-2 bg-[var(--bg-tertiary)] border border-[var(--border-color)] rounded-lg px-3 py-2 min-w-[150px] max-w-[220px] cursor-pointer hover:bg-[var(--border-color)] transition-colors"
-                                                            onClick={() => setPreviewMedia({ url: p.url, fileName: p.name || p.filename })}
-                                                        >
-                                                            <span className="text-lg">📄</span>
-                                                            <div className="flex flex-col min-w-0">
-                                                                <span className="text-xs font-medium text-[var(--text-primary)] truncate">
-                                                                    {p.name || 'Document'}
-                                                                </span>
-                                                                {p.page_count && (
-                                                                    <span className="text-[10px] text-[var(--text-secondary)]">
-                                                                        {p.page_count} page{p.page_count > 1 ? 's' : ''}
-                                                                        {p.truncated ? ' (truncated)' : ''}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                        </div>
-                                                    </Tooltip>
+                                                    <DocumentChip
+                                                        name={p.name || p.filename || 'Document'}
+                                                        url={p.url}
+                                                        pageCount={p.page_count}
+                                                        truncated={p.truncated}
+                                                        onClick={() => setPreviewMedia({ url: p.url, fileName: p.name || p.filename })}
+                                                        className="shadow-sm"
+                                                    />
                                                 )}
                                                 <button
                                                     type="button"
@@ -640,25 +627,12 @@ const InputArea = ({
 
                                                     className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
                                                     onClick={() => {
-                                                        imageInputRef.current?.click();
+                                                        fileInputRef.current?.click();
                                                         setShowAttachMenu(false);
                                                     }}
                                                 >
-                                                    <FaImage className="text-[var(--brand-primary)] text-base" />
-                                                    Upload Image
-                                                </button>
-                                                <div className="h-px bg-[var(--border-color)]" />
-                                                <button
-                                                    type="button"
-
-                                                    className="flex items-center gap-3 w-full px-4 py-3 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors"
-                                                    onClick={() => {
-                                                        pdfInputRef.current?.click();
-                                                        setShowAttachMenu(false);
-                                                    }}
-                                                >
-                                                    <FaFilePdf className="text-[var(--brand-primary)] text-base" />
-                                                    Upload Document
+                                                    <FaPaperclip className="text-[var(--brand-primary)] text-base" />
+                                                    Upload Files
                                                 </button>
                                                 <div className="h-px bg-[var(--border-color)]" />
                                                 <button
@@ -679,18 +653,10 @@ const InputArea = ({
 
                                     <input
                                         type="file"
-                                        ref={imageInputRef}
+                                        ref={fileInputRef}
                                         hidden
                                         multiple
-                                        accept="image/jpeg,image/png,image/webp"
-                                        onChange={handleFileChange}
-                                    />
-                                    <input
-                                        type="file"
-                                        ref={pdfInputRef}
-                                        hidden
-                                        multiple
-                                        accept=".pdf,application/pdf,.docx,.xlsx,.xls,.csv"
+                                        accept="image/jpeg,image/png,image/webp,.pdf,application/pdf,.docx,.xlsx,.xls,.csv"
                                         onChange={handleFileChange}
                                     />
 

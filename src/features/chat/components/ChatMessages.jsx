@@ -5,7 +5,8 @@ import LogisticsLoader from '../../../components/common/LogisticsLoader';
 import InputArea from './InputArea';
 import API_CONFIG from '../../../services/api.config';
 import UniversalOverlay from '../../../components/common/UniversalOverlay';
-import { FaFilePdf, FaPlus } from 'react-icons/fa';
+import DocumentChip from '../../../components/common/DocumentChip';
+import Tooltip from '../../../components/common/Tooltip';
 import { getCachedUrl } from '../../../services/fileCache';
 
 /** Thumbnail that caches its remote src as a blob for instant re-renders. */
@@ -62,7 +63,7 @@ const MessageRow = React.memo(({
                                         key={i}
                                         src={imgUrl}
                                         alt={`Attachment ${i}`}
-                                        onClick={(e) => onImageClick && onImageClick(e.target.src)}
+                                        onClick={(e) => onImageClick && onImageClick({ url: e.target.src })}
                                         className="w-32 h-24 rounded-lg border border-[var(--border-color)] bg-black/5 cursor-pointer hover:opacity-90 transition-opacity object-cover"
                                     />
                                 ))}
@@ -76,7 +77,7 @@ const MessageRow = React.memo(({
                                             : `${API_CONFIG.API_BASE_URL}${msg.image}`
                                     }
                                     alt="Attached by user"
-                                    onClick={(e) => onImageClick && onImageClick(e.target.src)}
+                                    onClick={(e) => onImageClick && onImageClick({ url: e.target.src })}
                                     className="w-32 h-24 rounded-lg mb-2 border border-[var(--border-color)] bg-black/5 cursor-pointer hover:opacity-90 transition-opacity object-cover"
                                 />
                             </div>
@@ -85,54 +86,35 @@ const MessageRow = React.memo(({
                         {/* Multiple PDF Support */}
                         {msg.pdfs && msg.pdfs.length > 0 ? (
                             <div className="flex flex-col gap-2 mb-3 items-end">
-                                {msg.pdfs.map((pdf, i) => (
-                                    <div
-                                        key={i}
-                                        className="flex items-center gap-3 p-3 bg-black/10 border border-white/5 rounded-xl cursor-pointer hover:bg-black/20 transition-all group/pdf w-full max-w-xs"
-                                        onClick={() => {
-                                            const fullUrl = pdf.url.startsWith('blob:') || pdf.url.startsWith('http')
-                                                ? pdf.url
-                                                : `${API_CONFIG.API_BASE_URL}${pdf.url}`;
-                                            onImageClick && onImageClick(fullUrl);
-                                        }}
-                                    >
-                                        <div className="w-10 h-10 bg-[#f83c3c] rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover/pdf:scale-105">
-                                            <FaFilePdf className="text-white text-xl" />
+                                {msg.pdfs.map((pdf, i) => {
+                                    const fullUrl = pdf.url.startsWith('blob:') || pdf.url.startsWith('http')
+                                        ? pdf.url
+                                        : `${API_CONFIG.API_BASE_URL}${pdf.url}`;
+                                    return (
+                                        <div key={i} className="flex justify-end w-full">
+                                            <Tooltip content={pdf.name || 'Document'} position="bottom">
+                                                <DocumentChip
+                                                    name={pdf.name || 'Document.pdf'}
+                                                    url={fullUrl}
+                                                    onClick={() => onImageClick && onImageClick({ url: fullUrl, fileName: pdf.name })}
+                                                />
+                                            </Tooltip>
                                         </div>
-                                        <div className="flex flex-col min-w-0 overflow-hidden pr-2 text-left">
-                                            <span className="text-sm font-bold text-[var(--text-primary)] truncate">
-                                                {pdf.name || 'Document.pdf'}
-                                            </span>
-                                            <span className="text-[11px] text-[var(--text-secondary)] font-medium tracking-wide uppercase">
-                                                PDF
-                                            </span>
-                                        </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (msg.pdf ? (
-                            <div className="flex justify-end w-full">
-                                <div
-                                    className="flex items-center gap-3 p-3 bg-black/10 border border-white/5 rounded-xl mb-3 cursor-pointer hover:bg-black/20 transition-all group/pdf"
-                                    onClick={() => {
-                                        const fullUrl = msg.pdf.startsWith('blob:') || msg.pdf.startsWith('http')
-                                            ? msg.pdf
-                                            : `${API_CONFIG.API_BASE_URL}${msg.pdf}`;
-                                        onImageClick && onImageClick(fullUrl);
-                                    }}
-                                >
-                                    <div className="w-10 h-10 bg-[#f83c3c] rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover/pdf:scale-105">
-                                        <FaFilePdf className="text-white text-xl" />
-                                    </div>
-                                    <div className="flex flex-col min-w-0 overflow-hidden pr-2">
-                                        <span className="text-sm font-bold text-[var(--text-primary)] truncate">
-                                            {msg.pdf_name || 'Document.pdf'}
-                                        </span>
-                                        <span className="text-[11px] text-[var(--text-secondary)] font-medium tracking-wide uppercase">
-                                            PDF
-                                        </span>
-                                    </div>
-                                </div>
+                            <div className="flex justify-end w-full mb-3">
+                                <Tooltip content={msg.pdf_name || 'Document'} position="bottom">
+                                    <DocumentChip
+                                        name={msg.pdf_name || 'Document.pdf'}
+                                        url={msg.pdf.startsWith('blob:') || msg.pdf.startsWith('http') ? msg.pdf : `${API_CONFIG.API_BASE_URL}${msg.pdf}`}
+                                        onClick={() => {
+                                            const fullUrl = msg.pdf.startsWith('blob:') || msg.pdf.startsWith('http') ? msg.pdf : `${API_CONFIG.API_BASE_URL}${msg.pdf}`;
+                                            onImageClick && onImageClick({ url: fullUrl, fileName: msg.pdf_name });
+                                        }}
+                                    />
+                                </Tooltip>
                             </div>
                         ) : null)}
 
@@ -248,7 +230,7 @@ const ChatMessages = ({
     setIsVoiceMode,
     setLiveVoiceMessages
 }) => {
-    const [previewImage, setPreviewImage] = useState(null);
+    const [previewMedia, setPreviewMedia] = useState(null);
     // -------------------------------------------
     // REFS FOR DOM ACCESS AND MEASUREMENT
     // -------------------------------------------
@@ -418,7 +400,7 @@ const ChatMessages = ({
                                     activeSession={activeSession}
                                     onTypingComplete={onTypingComplete}
                                     onLinkClick={onLinkClick}
-                                    onImageClick={setPreviewImage}
+                                    onImageClick={setPreviewMedia}
                                     scrollToBottom={handleTypingScroll}
                                 />
                             </div>
@@ -452,9 +434,11 @@ const ChatMessages = ({
             </div>
 
             <UniversalOverlay
-                isOpen={!!previewImage}
-                imageUrl={previewImage}
-                onClose={() => setPreviewImage(null)}
+                isOpen={!!previewMedia}
+                imageUrl={previewMedia?.url}
+                fileName={previewMedia?.fileName}
+                containerId={activeSessionId ? `chat-tab-${activeSessionId}` : 'chat-area-container'}
+                onClose={() => setPreviewMedia(null)}
             />
         </div>
     );

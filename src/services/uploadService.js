@@ -138,12 +138,13 @@ export const uploadFileToBackend = async (file) => {
 
     // Attach a local blob URL so the UI can show a preview immediately.
     // Only useful for images — for documents the UI shows an icon chip instead.
-    const isImage = data.file_type === 'image';
+    const actualIsDoc = ALLOWED_DOC_TYPES.includes(file.type) || file.name.match(/\.(docx|doc|xlsx|xls|csv|pdf)$/i);
+    const isImage = !actualIsDoc && (data.file_type === 'image' || file.type.startsWith('image/'));
     const previewBlobUrl = isImage ? URL.createObjectURL(file) : null;
     
     // We can infer local file_type properly if backend doesn't detect it perfectly 
     // or we can just rely on the existing backend behavior, mapping documents:
-    const finalFileType = isImage ? 'image' : (ALLOWED_DOC_TYPES.includes(file.type) || file.name.endsWith('.docx') || file.name.endsWith('.xlsx') || file.name.endsWith('.csv') ? 'document' : data.file_type);
+    const finalFileType = actualIsDoc ? (file.name.match(/\.pdf$/i) ? 'pdf' : 'document') : (isImage ? 'image' : data.file_type);
 
     return {
         url: data.url,
