@@ -183,7 +183,7 @@ const Layout = () => {
                     toggleMobileSidebar={toggleMobileSidebar}
                     selectedLang={selectedLang}
                     onToggleLang={() => setLangOpen(!langOpen)}
-                    onOpenThreadSwitcher={() => setSessionSwitcherOpen(true)}
+                    onOpenSessionSwitcher={() => setSessionSwitcherOpen(true)}
                     onNewChat={onNewChatWithScroll}
                 />
 
