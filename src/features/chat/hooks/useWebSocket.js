@@ -49,7 +49,7 @@ export const useWebSocket = (
     const handleMessage = useCallback((sessionId, data) => {
         try {
             if (!sessionId) return;
- 
+
             let shouldRefreshSessions = false;
             let shouldMoveSessionToTop = false;
             let moveSessionToTopId = null;
@@ -69,7 +69,7 @@ export const useWebSocket = (
 
                 if (chunkToAppend) {
                     pendingChunksRef.current[sessionId] = (pendingChunksRef.current[sessionId] || '') + chunkToAppend;
- 
+
                     if (!streamTimerRef.current) {
                         streamTimerRef.current = setTimeout(() => {
                             const snapshot = { ...pendingChunksRef.current };
@@ -79,11 +79,11 @@ export const useWebSocket = (
                             setActiveSessions(prev => prev.map(session => {
                                 const pending = snapshot[session.id];
                                 if (!pending) return session;
- 
+
                                 const msgs = [...session.messages];
                                 const lastIdx = msgs.length - 1;
                                 let lMsg = msgs[lastIdx];
- 
+
                                 if (lMsg?.role === 'assistant' && lMsg.isStreaming) {
                                     msgs[lastIdx] = { ...lMsg, content: lMsg.content + pending };
                                 } else {
@@ -109,222 +109,222 @@ export const useWebSocket = (
                     if (s.id !== sessionId) return s;
 
                     const messages = [...s.messages];
-                let lastMsgIndex = messages.length - 1;
-                let lastMsg = messages[lastMsgIndex];
+                    let lastMsgIndex = messages.length - 1;
+                    let lastMsg = messages[lastMsgIndex];
 
-                // Flush any buffered chunks before processing a terminal or status event
-                if (pendingChunksRef.current[sessionId]) {
-                    const pending = pendingChunksRef.current[sessionId];
-                    if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
-                        lastMsg = { ...lastMsg, content: lastMsg.content + pending };
-                        messages[lastMsgIndex] = lastMsg;
-                    } else {
-                        lastMsg = {
-                            role: 'assistant',
-                            content: pending,
-                            isStreaming: true,
-                            isNew: false,
-                            timestamp: Date.now()
-                        };
-                        messages.push(lastMsg);
-                        lastMsgIndex = messages.length - 1;
-                    }
-                    delete pendingChunksRef.current[sessionId];
-                }
-
-                const thinkingSteps = s.thinkingSteps || [];
-
-                // 1. LEGACY & SIMPLE FORMATS (chunk, done, reply, response)
-                if (data.chunk || data.done !== undefined || data.reply || data.response !== undefined || data.TextCompleted !== undefined) {
-                    const isDone = data.done === true ||
-                        data.TextCompleted === true ||
-                        (typeof data.response === 'string' && data.response.includes('@//done//@'));
-
-                    const chunk = data.chunk || data.response || '';
-                    const cleanChunk = typeof chunk === 'string' ? chunk.replace('@//done//@', '') : chunk;
-
-                    if (isDone) {
+                    // Flush any buffered chunks before processing a terminal or status event
+                    if (pendingChunksRef.current[sessionId]) {
+                        const pending = pendingChunksRef.current[sessionId];
                         if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
-                            messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + cleanChunk, isStreaming: false, isNew: false };
-                        } else if (cleanChunk) {
-                            messages.push({
-                                role: 'assistant',
-                                content: cleanChunk,
-                                isStreaming: false,
-                                isNew: true,
-                                timestamp: Date.now()
-                            });
-                        }
-
-                        if (hasSentMessageRef.current) {
-                            hasSentMessageRef.current = false;
-                            if (s.isNew) {
-                                shouldRefreshSessions = true;
-                            } else {
-                                shouldMoveSessionToTop = true;
-                                moveSessionToTopId = s.id;
-                            }
-                        }
- 
-                        return { ...s, isNew: false, isThinking: false, messages };
-                    } else if (cleanChunk) {
-                        if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
-                            messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + cleanChunk };
+                            lastMsg = { ...lastMsg, content: lastMsg.content + pending };
+                            messages[lastMsgIndex] = lastMsg;
                         } else {
-                            messages.push({
+                            lastMsg = {
                                 role: 'assistant',
-                                content: cleanChunk,
+                                content: pending,
                                 isStreaming: true,
                                 isNew: false,
                                 timestamp: Date.now()
-                            });
-                        }
-                        return { ...s, isThinking: false, messages };
-                    } else if (data.reply) {
-                        return {
-                            ...s,
-                            isThinking: false,
-                            messages: [...messages, { role: 'assistant', content: data.reply, isNew: true, timestamp: Date.now() }]
-                        };
-                    }
-                    return s;
-                }
-
-                // 2. ADVANCED STREAMING FORMATS (type-based status and execution steps)
-                switch (data.type) {
-                    case 'status':
-                        {
-                            const isComplete = data.status === 'completed';
-                            const newStep = {
-                                message: data.message,
-                                status: isComplete ? 'completed' : 'in-progress',
-                                type: 'status',
-                                time: data.time || null
                             };
-                            const newThinking = [...thinkingSteps];
-                            if (isComplete && newThinking.length > 0) {
-                                const lastStep = newThinking[newThinking.length - 1];
-                                if (lastStep.status === 'in-progress') {
-                                    newThinking[newThinking.length - 1] = newStep;
+                            messages.push(lastMsg);
+                            lastMsgIndex = messages.length - 1;
+                        }
+                        delete pendingChunksRef.current[sessionId];
+                    }
+
+                    const thinkingSteps = s.thinkingSteps || [];
+
+                    // 1. LEGACY & SIMPLE FORMATS (chunk, done, reply, response)
+                    if (data.chunk || data.done !== undefined || data.reply || data.response !== undefined || data.TextCompleted !== undefined) {
+                        const isDone = data.done === true ||
+                            data.TextCompleted === true ||
+                            (typeof data.response === 'string' && data.response.includes('@//done//@'));
+
+                        const chunk = data.chunk || data.response || '';
+                        const cleanChunk = typeof chunk === 'string' ? chunk.replace('@//done//@', '') : chunk;
+
+                        if (isDone) {
+                            if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
+                                messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + cleanChunk, isStreaming: false, isNew: false };
+                            } else if (cleanChunk) {
+                                messages.push({
+                                    role: 'assistant',
+                                    content: cleanChunk,
+                                    isStreaming: false,
+                                    isNew: true,
+                                    timestamp: Date.now()
+                                });
+                            }
+
+                            if (hasSentMessageRef.current) {
+                                hasSentMessageRef.current = false;
+                                if (s.isNew) {
+                                    shouldRefreshSessions = true;
+                                } else {
+                                    shouldMoveSessionToTop = true;
+                                    moveSessionToTopId = s.id;
+                                }
+                            }
+
+                            return { ...s, isNew: false, isThinking: false, messages };
+                        } else if (cleanChunk) {
+                            if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
+                                messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + cleanChunk };
+                            } else {
+                                messages.push({
+                                    role: 'assistant',
+                                    content: cleanChunk,
+                                    isStreaming: true,
+                                    isNew: false,
+                                    timestamp: Date.now()
+                                });
+                            }
+                            return { ...s, isThinking: false, messages };
+                        } else if (data.reply) {
+                            return {
+                                ...s,
+                                isThinking: false,
+                                messages: [...messages, { role: 'assistant', content: data.reply, isNew: true, timestamp: Date.now() }]
+                            };
+                        }
+                        return s;
+                    }
+
+                    // 2. ADVANCED STREAMING FORMATS (type-based status and execution steps)
+                    switch (data.type) {
+                        case 'status':
+                            {
+                                const isComplete = data.status === 'completed';
+                                const newStep = {
+                                    message: data.message,
+                                    status: isComplete ? 'completed' : 'in-progress',
+                                    type: 'status',
+                                    time: data.time || null
+                                };
+                                const newThinking = [...thinkingSteps];
+                                if (isComplete && newThinking.length > 0) {
+                                    const lastStep = newThinking[newThinking.length - 1];
+                                    if (lastStep.status === 'in-progress') {
+                                        newThinking[newThinking.length - 1] = newStep;
+                                    } else {
+                                        newThinking.push(newStep);
+                                    }
                                 } else {
                                     newThinking.push(newStep);
                                 }
-                            } else {
-                                newThinking.push(newStep);
-                            }
-                            return { ...s, isThinking: true, thinkingSteps: newThinking };
-                        }
-
-                    case 'phase_complete':
-                        {
-                            const phaseMap = {
-                                analysis: 'Analysis',
-                                param_extraction: 'Parameter Extraction',
-                                tool_execution: 'Tool Execution',
-                                response_generation: 'Response Generation'
-                            };
-                            if (phaseMap[data.phase]) {
-                                const newThinking = [...thinkingSteps, {
-                                    message: `${phaseMap[data.phase]} complete`,
-                                    status: 'completed',
-                                    time: data.time,
-                                    type: 'phase'
-                                }];
                                 return { ...s, isThinking: true, thinkingSteps: newThinking };
                             }
-                            return s;
+
+                        case 'phase_complete':
+                            {
+                                const phaseMap = {
+                                    analysis: 'Analysis',
+                                    param_extraction: 'Parameter Extraction',
+                                    tool_execution: 'Tool Execution',
+                                    response_generation: 'Response Generation'
+                                };
+                                if (phaseMap[data.phase]) {
+                                    const newThinking = [...thinkingSteps, {
+                                        message: `${phaseMap[data.phase]} complete`,
+                                        status: 'completed',
+                                        time: data.time,
+                                        type: 'phase'
+                                    }];
+                                    return { ...s, isThinking: true, thinkingSteps: newThinking };
+                                }
+                                return s;
+                            }
+
+                        case 'tool_call':
+                            return {
+                                ...s,
+                                isThinking: true,
+                                thinkingSteps: [...thinkingSteps, {
+                                    message: `Calling: ${data.name}`,
+                                    status: data.status || 'in-progress',
+                                    type: 'tool_call',
+                                    details: data.args
+                                }]
+                            };
+
+                        case 'tool_result':
+                            return {
+                                ...s,
+                                isThinking: true,
+                                thinkingSteps: [...thinkingSteps, {
+                                    message: 'Tool output received',
+                                    status: 'completed',
+                                    type: 'tool_result',
+                                    time: data.time || null,
+                                    details: data.content
+                                }]
+                            };
+
+                        case 'phase_metric':
+                            return {
+                                ...s,
+                                isThinking: true,
+                                thinkingSteps: [...thinkingSteps, {
+                                    message: data.phase === 'response_ttft' ? `Time to first token: ${data.time}ms` : `Metric phase: ${data.phase}`,
+                                    status: 'completed',
+                                    type: 'phase_metric',
+                                    time: data.time || null
+                                }]
+                            };
+
+                        case 'message_start':
+                            return { ...s, isThinking: false };
+
+                        case 'message_chunk': {
+                            if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
+                                messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + data.content };
+                            } else {
+                                messages.push({
+                                    role: 'assistant',
+                                    content: data.content,
+                                    isStreaming: true,
+                                    isNew: false,
+                                    timestamp: Date.now()
+                                });
+                            }
+                            return { ...s, messages };
                         }
 
-                    case 'tool_call':
-                        return {
-                            ...s,
-                            isThinking: true,
-                            thinkingSteps: [...thinkingSteps, {
-                                message: `Calling: ${data.name}`,
-                                status: data.status || 'in-progress',
-                                type: 'tool_call',
-                                details: data.args
-                            }]
-                        };
+                        case 'message_end':
+                        case 'done': {
+                            if (lastMsg?.isStreaming) {
+                                messages[lastMsgIndex] = { ...lastMsg, isStreaming: false, isNew: true };
+                            }
 
-                    case 'tool_result':
-                        return {
-                            ...s,
-                            isThinking: true,
-                            thinkingSteps: [...thinkingSteps, {
-                                message: 'Tool output received',
-                                status: 'completed',
-                                type: 'tool_result',
-                                time: data.time || null,
-                                details: data.content
-                            }]
-                        };
+                            if (hasSentMessageRef.current) {
+                                hasSentMessageRef.current = false;
+                                if (s.isNew) {
+                                    shouldRefreshSessions = true;
+                                } else {
+                                    shouldMoveSessionToTop = true;
+                                    moveSessionToTopId = s.id;
+                                }
+                            }
 
-                    case 'phase_metric':
-                        return {
-                            ...s,
-                            isThinking: true,
-                            thinkingSteps: [...thinkingSteps, {
-                                message: data.phase === 'response_ttft' ? `Time to first token: ${data.time}ms` : `Metric phase: ${data.phase}`,
-                                status: 'completed',
-                                type: 'phase_metric',
-                                time: data.time || null
-                            }]
-                        };
+                            return { ...s, isNew: false, isThinking: false, messages };
+                        }
 
-                    case 'message_start':
-                        return { ...s, isThinking: false };
+                        case 'timing':
+                            return { ...s, metrics: data.data };
 
-                    case 'message_chunk': {
-                        if (lastMsg?.role === 'assistant' && lastMsg.isStreaming) {
-                            messages[lastMsgIndex] = { ...lastMsg, content: lastMsg.content + data.content };
-                        } else {
+                        case 'error':
+                            console.error('[useWebSocket] Backend reported error:', data.message);
                             messages.push({
                                 role: 'assistant',
-                                content: data.content,
-                                isStreaming: true,
-                                isNew: false,
+                                content: `Error: ${data.message || 'The server encountered an issue processing your request.'}`,
+                                isNew: true,
                                 timestamp: Date.now()
                             });
-                        }
-                        return { ...s, messages };
+                            return { ...s, isThinking: false, messages };
+
+                        default:
+                            return s;
                     }
-
-                    case 'message_end':
-                    case 'done': {
-                        if (lastMsg?.isStreaming) {
-                            messages[lastMsgIndex] = { ...lastMsg, isStreaming: false, isNew: true };
-                        }
-
-                        if (hasSentMessageRef.current) {
-                            hasSentMessageRef.current = false;
-                            if (s.isNew) {
-                                shouldRefreshSessions = true;
-                            } else {
-                                shouldMoveSessionToTop = true;
-                                moveSessionToTopId = s.id;
-                            }
-                        }
- 
-                        return { ...s, isNew: false, isThinking: false, messages };
-                    }
-
-                    case 'timing':
-                        return { ...s, metrics: data.data };
-
-                    case 'error':
-                        console.error('[useWebSocket] Backend reported error:', data.message);
-                        messages.push({
-                            role: 'assistant',
-                            content: `Error: ${data.message || 'The server encountered an issue processing your request.'}`,
-                            isNew: true,
-                            timestamp: Date.now()
-                        });
-                        return { ...s, isThinking: false, messages };
-
-                    default:
-                        return s;
-                }
                 });
             });
 
@@ -333,7 +333,6 @@ export const useWebSocket = (
                 // Refresh sidebar with a slight delay to allow backend persistence to settle
                 setTimeout(async () => {
                     await onSessionsChanged();       // page 1
-                    await onSessionsChanged(true);   // page 2
                 }, 800);
             } else if (shouldMoveSessionToTop) {
                 moveSessionToTop?.(moveSessionToTopId);

@@ -13,7 +13,7 @@ class ChatService {
      * @param {number} limit - The maximum number of sessions to return per request
      * @returns {Promise<Object>} An object containing the sessions array and hasMore flag
      */
-    async getAllSessions(skip = 0, limit = 10) {
+    async getAllSessions(skip = 0, limit = 15) {
         const customerStr = localStorage.getItem('customer');
         const customerObj = customerStr ? JSON.parse(customerStr) : {};
         const resultData = customerObj.result || {};
@@ -233,13 +233,13 @@ class ChatService {
         const languageCode = getLanguageCode(lang);
 
         // Mirror Jinja template format exactly so the LiveKit dispatch rule matches
-        const customerId = rawId.startsWith('cust_') ? rawId : `cust_${rawId}`;
+        // const customerId = rawId.startsWith('cust_') ? rawId : `cust_${rawId}`;
         const chatId = sessionId
             ? (sessionId.startsWith('chat_') ? sessionId : `chat_${sessionId}`)
             : `chat_${Date.now()}`;
 
         const payload = {
-            customer_id: customerId,   // → cust_633164d22c151b0884b3190b
+            customer_id: rawId,   // → 633164d22c151b0884b3190b
             chat_id: chatId,       // → chat_96371140-2a69-11f1-bacf-c73a3959cd59
             language: languageCode,
         };
