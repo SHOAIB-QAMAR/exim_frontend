@@ -41,7 +41,7 @@ class ChatService {
             messages: [],
         }));
 
-        // Backend paginates at CHAT_LIST_PAGE_SIZE (default 10)
+        // Backend paginates at CHAT_LIST_PAGE_SIZE (default 15)
         const hasMore = data.count !== undefined
             ? (skip + rawSessions.length) < data.count
             : rawSessions.length >= limit;
@@ -57,27 +57,18 @@ class ChatService {
     async getSessionMessages(sessionId, page = 1) {
         if (!sessionId) throw new Error('sessionId is required but was not provided');
 
-        const startTime = performance.now();
-
         const response = await fetch(`${API_CONFIG.API_BASE_URL}/api/chat/detail`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ id: sessionId, page }),
         });
 
-        const latency = performance.now() - startTime;
-        console.groupCollapsed(`📊 [Metrics] API: getSessionMessages - ${Math.round(latency)}ms`);
-        console.log(`Latency: ${latency.toFixed(2)} ms`);
-        console.groupEnd();
-
         if (!response.ok) throw new Error(`HTTP ${response.status}: Failed to fetch session messages`);
 
         const data = await response.json();
 
-        // ✅ Backend returns messages in `result`, not `messages`
-        const rawMessages = data.result || data.messages || data.all_chat || [];
+        const rawMessages = data.result || [];
 
-        // ✅ Backend uses totalPages + page, not total + page_size
         const hasMore = data.totalPages
             ? Number(data.page || 1) < Number(data.totalPages)
             : false;
@@ -87,32 +78,14 @@ class ChatService {
             hasMore,
             messages: rawMessages.map((msg, index) => ({
                 ...msg,
-                id: msg._id || msg.id || msg.questionAnswer || `${sessionId}-msg-${index}`,
-                // ✅ Backend uses `text` as the content field — prioritise it
-                role: msg.role === 'customer' ? 'user' : (msg.role || 'assistant'),
-                content: msg.text || msg.content || msg.message || '',
-                image: msg.image_url || msg.image || null,
-                // ✅ Extract multiple files from the backend `files` array with deduplication
-                images: [...new Set([
-                    ...(msg.image_url ? [msg.image_url] : []),
-                    ...(msg.image ? [msg.image] : []),
-                    ...(msg.files?.filter(f => f.file_type === 'image').map(f => f.url) || [])
-                ])],
-                pdfs: (() => {
-                    const seenUrls = new Set();
-                    const pdfs = [];
-                    if (msg.pdf) {
-                        pdfs.push({ url: msg.pdf, name: msg.pdf_name || 'Document.pdf' });
-                        seenUrls.add(msg.pdf);
-                    }
-                    (msg.files?.filter(f => f.file_type === 'pdf') || []).forEach(f => {
-                        if (!seenUrls.has(f.url)) {
-                            pdfs.push({ url: f.url, name: f.filename, ...f });
-                            seenUrls.add(f.url);
-                        }
-                    });
-                    return pdfs;
-                })(),
+                id: msg.questionAnswer || `${sessionId}-msg-${index}`,
+                role: msg.role,
+                content: msg.text || '',
+                images: msg.files?.filter(f => f.file_type === 'image').map(f => f.url) || [],
+                pdfs: msg.files?.filter(f => f.file_type === 'pdf').map(f => ({
+                    ...f,
+                    name: f.filename
+                })) || [],
             })),
         };
     }
@@ -232,7 +205,6 @@ class ChatService {
         const rawId = custBranchData.customerId || custData._id || csBuddyData._id || '';
         const languageCode = getLanguageCode(lang);
 
-        // Mirror Jinja template format exactly so the LiveKit dispatch rule matches
         // const customerId = rawId.startsWith('cust_') ? rawId : `cust_${rawId}`;
         const chatId = sessionId
             ? (sessionId.startsWith('chat_') ? sessionId : `chat_${sessionId}`)

@@ -80,15 +80,9 @@ export const useChatActions = ({
      * Handles sending a new chat message.
      * Includes optimistic updates and multi-modal attachment handling.
      *
-     * selectedFiles shape coming from InputArea:
-     *   []                    — nothing attached
-     *   Array of UploadResult objects — pre-uploaded by InputArea:
-     *     { url, file_type, filename, page_count, truncated, previewBlobUrl }
-     *
      * @param {string} text - Message content
-     * @param {Object} [options={}] - Additional options (e.g., isRetry, fileResults)
      */
-    const handleSend = useCallback(async (text, options = {}) => {
+    const handleSend = useCallback(async (text) => {
         if (isSendingRef.current) return;
 
         // ── Early Offline Guard ───────────────────────────────────────────
@@ -100,8 +94,7 @@ export const useChatActions = ({
         isSendingRef.current = true;
 
         try {
-            const hasFiles = (activeSession.selectedFiles && activeSession.selectedFiles.length > 0) ||
-                (options.fileResults && options.fileResults.length > 0);
+            const hasFiles = activeSession.selectedFiles && activeSession.selectedFiles.length > 0;
 
             if (!text.trim() && !hasFiles) {
                 isSendingRef.current = false;
@@ -113,10 +106,7 @@ export const useChatActions = ({
             let uploadResults = [];
 
             // ── Determine upload results ───────────────────────────────────────
-            if (options.isRetry && options.fileResults) {
-                uploadResults = options.fileResults;
-            } else if (activeSession.selectedFiles && activeSession.selectedFiles.length > 0) {
-                // In the logic where InputArea handles uploads, we just take them
+            if (activeSession.selectedFiles && activeSession.selectedFiles.length > 0) {
                 uploadResults = activeSession.selectedFiles;
             }
 
@@ -147,7 +137,6 @@ export const useChatActions = ({
                 messages: [...s.messages, userMsg],
                 inputValue: '',
                 isThinking: true,
-                thinkingSteps: [],
                 title: newTitle,
                 selectedFiles: [], // Clear selection
                 isUploading: false,
@@ -216,23 +205,13 @@ export const useChatActions = ({
         }
     }, [activeSession, activeSessionId, setActiveSessions, sendMessage, selectedLang, showNotification]);
 
-    /**
-     * Retries the last user message.
-     */
-    const handleRetry = useCallback((text, fileResult = null) => {
-        handleSend(text, { isRetry: true, fileResult });
-    }, [handleSend]);
+
 
 
     // ── Typing complete ───────────────────────────────────────────────────────
-    /**
-     * CHANGED: Old version updated individual message isNew flags via updateActiveSession.
-     *          New version sets isThinking: false + clears thinkingSteps at the session level,
-     *          and triggers input focus.
-     */
     const handleTypingComplete = useCallback((sessionId) => {
         setActiveSessions(prev => prev.map(s =>
-            s.id === sessionId ? { ...s, isThinking: false, thinkingSteps: [] } : s
+            s.id === sessionId ? { ...s, isThinking: false } : s
         ));
         if (setFocusTrigger) setFocusTrigger(true);
     }, [setActiveSessions, setFocusTrigger]);
@@ -277,11 +256,7 @@ export const useChatActions = ({
     }, [deleteSession, activeSessions, handleTabClose]);
 
 
-    // ── Search: start new chat (kept from previous code) ─────────────────────
-    /**
-     * NOTE: handleSearchStartChat is retained from the previous version in case
-     *       any existing consumers still reference it. Remove if no longer needed.
-     */
+    // ── Search: start new chat ─────────────────────
     const handleSearchStartChat = useCallback((text) => {
         handleNewChat();
         setTimeout(() => {
@@ -298,7 +273,6 @@ export const useChatActions = ({
 
     return {
         handleSend,
-        handleRetry,
         handleTypingComplete,
         handleFeatureClick,
         handleSearchResultClick,

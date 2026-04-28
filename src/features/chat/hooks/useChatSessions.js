@@ -49,9 +49,8 @@ const createSession = (id = generateSessionId(), title = "New Chat") => ({
  * @returns {Object} Session state and stable action handlers
  */
 export const useChatSessions = (sessions, closeMobileSidebar) => {
-    // ── CONCURRENCY GAURD ──
-    // Synchronous semaphore to prevent race conditions during rapid pagination triggers.
-    // React state updates (isLoadingMore) are asynchronous and can be bypassed by rapid scroll events.
+
+    // A safety lock that prevents duplicate API calls if the user scrolls or clicks too fast.
     const loadingRef = useRef(new Set());
 
     // ── PERSISTENCE INITIALIZATION ──

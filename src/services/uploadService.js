@@ -26,27 +26,37 @@ export const validateImage = (file) => {
 };
 
 /**
- * Validates any supported file (image or PDF).
+ * Validates any supported file (PDF).
  * Throws with a user-facing message on failure.
  */
 export const validateFile = (file) => {
-    // Normalise octet-stream by extension
     let effectiveType = file.type;
+
+    // Normalise octet-stream by extension
     if (effectiveType === 'application/octet-stream') {
-        const ext = file.name.split('.').pop().toLowerCase();
-        const map = { pdf: 'application/pdf', jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
-        effectiveType = map[ext] || effectiveType;
+        const ext = file.name?.split('.').pop()?.toLowerCase();
+        const extMap = {
+            'pdf': 'application/pdf',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'png': 'image/png',
+            'webp': 'image/webp',
+            'gif': 'image/gif'
+        };
+        if (ext && extMap[ext]) {
+            effectiveType = extMap[ext];
+        }
     }
 
     if (!ALLOWED_TYPES.includes(effectiveType)) {
-        throw new Error('Unsupported file type. Please upload a PDF, JPEG, PNG, or WEBP.');
+        throw new Error('Unsupported file type. Please upload an image (JPEG, PNG, WEBP, GIF) or a PDF.');
     }
 
     const isPdf = ALLOWED_PDF_TYPES.includes(effectiveType);
-    const maxMB = isPdf ? MAX_PDF_MB : MAX_IMAGE_MB;
+    const maxSizeMB = isPdf ? MAX_PDF_MB : MAX_IMAGE_MB;
 
-    if (file.size > maxMB * 1024 * 1024) {
-        throw new Error(`File is too large. Maximum size is ${maxMB}MB.`);
+    if (file.size > maxSizeMB * 1024 * 1024) {
+        throw new Error(`File is too large. Maximum size is ${maxSizeMB}MB.`);
     }
 
     return true;
@@ -66,7 +76,7 @@ export const compressImage = async (file) => {
         const compressed = await imageCompression(file, {
             maxSizeMB: 1,
             maxWidthOrHeight: 1920,
-            useWebWorker: true,
+            useWebWorker: true, // Runs compression in background thread, prevents UI freezing
         });
         return compressed;
     } catch {
@@ -89,7 +99,6 @@ export const compressImage = async (file) => {
  * @returns {Promise<{ url, file_type, filename, page_count, truncated, previewBlobUrl }>}
  */
 export const uploadFileToBackend = async (file) => {
-    const startTime = performance.now();
 
     const formData = new FormData();
     formData.append('file', file, file.name || 'upload');
@@ -99,13 +108,6 @@ export const uploadFileToBackend = async (file) => {
         body: formData,
         // Note: Do NOT set Content-Type manually — browser sets multipart boundary automatically
     });
-
-    const latency = performance.now() - startTime;
-    console.groupCollapsed(`📊 [Metrics] Backend Upload - ${Math.round(latency)}ms`);
-    console.log(`Latency:   ${latency.toFixed(2)} ms`);
-    console.log(`File Size: ${(file.size / 1024).toFixed(2)} KB`);
-    console.log(`File Type: ${file.type}`);
-    console.groupEnd();
 
     if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -148,9 +150,8 @@ export const processAndUploadFile = async (file) => {
     validateFile(file);
 
     const isPdf = ALLOWED_PDF_TYPES.includes(file.type) ||
-        (file.type === 'application/octet-stream' && file.name.endsWith('.pdf'));
+        (file.type === 'application/octet-stream' && file.name?.toLowerCase().endsWith('.pdf'));
 
     const fileToUpload = isPdf ? file : await compressImage(file);
     return await uploadFileToBackend(fileToUpload);
 };
-

@@ -33,6 +33,7 @@ export const useSessions = () => {
         } else {
             setIsLoading(true);
             skipRef.current = 0;
+            // Assume there might be more data since we are starting over.
             setHasMore(true);
         }
 
@@ -71,12 +72,9 @@ export const useSessions = () => {
     }, []);
 
 
-    // Tracks initial mountain state for StrictMode compatibility
+    // Tracks initial state for StrictMode compatibility
     const hasLoadedRef = useRef(false);
 
-    /**
-     * Initial Load: Fetches the first two pages of history to provide a better UX.
-     */
     useEffect(() => {
         if (hasLoadedRef.current) return; // Prevent StrictMode double-fire
         hasLoadedRef.current = true;

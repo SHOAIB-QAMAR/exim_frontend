@@ -1,6 +1,5 @@
 import React, { useCallback, useRef, useEffect, useState, useLayoutEffect } from 'react';
 import MessageContent, { TypingMessage } from './MessageContent';
-import AIProcessingDropdown from './AIProcessingDropdown';
 import LogisticsLoader from '../../../components/common/LogisticsLoader';
 import InputArea from './InputArea';
 import API_CONFIG from '../../../services/api.config';
@@ -36,16 +35,7 @@ const MessageRow = React.memo(({
     scrollToBottom
 }) => {
 
-    const isLastAssistantMsg = msg.role === 'assistant' && idx === messages.length - 1;
-
-    // Show the AI thinking process dropdown only on the last assistant message
-    const showDropdownInAssistant = isLastAssistantMsg && (activeSession.thinkingSteps?.length > 0);
-
-    // Completion status for the thinking dropdown
-    const isProcessingComplete = !activeSession.isThinking && (activeSession.thinkingSteps?.length > 0);
-
     return (
-        // ✅ FIXED: Removed stray backtick and "message", properly closed the div
         <div className="w-full max-w-5xl mx-auto px-4 md:px-6">
             {/* User Message Block */}
             {msg.role === 'user' && (
@@ -159,12 +149,6 @@ const MessageRow = React.memo(({
                         A
                     </div>
                     <div className="w-full md:max-w-[85%] animate-fade-in-up">
-                        {showDropdownInAssistant && (
-                            <AIProcessingDropdown
-                                steps={activeSession.thinkingSteps}
-                                isComplete={isProcessingComplete}
-                            />
-                        )}
 
                         <div className="text-[13px] sm:text-sm md:text-base text-[var(--text-primary)] leading-relaxed">
                             {(msg.isStreaming || msg.isNew) ? (
@@ -201,14 +185,7 @@ const MessageRow = React.memo(({
                         A
                     </div>
                     <div className="w-full md:max-w-[85%] animate-fade-in-up">
-                        {activeSession.thinkingSteps?.length > 0 ? (
-                            <AIProcessingDropdown
-                                steps={activeSession.thinkingSteps}
-                                isComplete={false}
-                            />
-                        ) : (
-                            <LogisticsLoader />
-                        )}
+                        <LogisticsLoader />
                     </div>
                 </div>
             )}
@@ -323,7 +300,7 @@ const ChatMessages = ({
         else if (isPinnedToBottomRef.current) {
             snapToBottom();
         }
-    }, [messages, activeSession.id, activeSession.isThinking, activeSession.thinkingSteps?.length, isActive, snapToBottom]);
+    }, [messages, activeSession.id, activeSession.isThinking, isActive, snapToBottom]);
 
     // Cleanup RAF on unmount
     useEffect(() => {

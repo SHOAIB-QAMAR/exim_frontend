@@ -262,23 +262,18 @@ export const TypingMessage = ({ content, isStreaming, onComplete, onTyping, onLi
                 return;
             }
 
-            // ── ADAPTIVE SPEED LOGIC ──
-            // If the Web Socket stream is sending chunks faster than our 30ms animation ticker can keep up with, 
-            // the text queue builds up. We dynamically chunk multiple words per frame to catch up.
+            // ── SMOOTH CHARACTER SPEED LOGIC ──
+            // To ensure buttery smooth streaming, we increment by characters instead of whole words.
             const buffered = totalLen - pos;
-            let wordsThisTick = 1;
-            if (buffered > 300) wordsThisTick = 5;       // Severely behind → aggressive multi-word chunking
-            else if (buffered > 150) wordsThisTick = 3;  // Behind → fast catch-up
-            else if (buffered > 50) wordsThisTick = 2;   // Slightly behind
+            let charsThisTick = 1;
 
-            // Advance by N words instead of N characters (a word = non-whitespace chars + any trailing whitespace)
-            let newPos = pos;
-            for (let w = 0; w < wordsThisTick && newPos < totalLen; w++) {
-                // Skip forward to the end of current word
-                while (newPos < totalLen && content[newPos] !== ' ' && content[newPos] !== '\n') newPos++;
-                // Skip past any trailing whitespace after the word
-                while (newPos < totalLen && (content[newPos] === ' ' || content[newPos] === '\n')) newPos++;
-            }
+            // If the Web Socket stream is sending chunks faster than our 30ms ticker, we dynamically
+            // increase the characters-per-frame to catch up gracefully without huge visual jumps.
+            if (buffered > 500) charsThisTick = 15;        // Severely behind -> rapid but smooth flush
+            else if (buffered > 200) charsThisTick = 8;    // Behind -> fast catch-up
+            else if (buffered > 50) charsThisTick = 3;     // Slightly behind -> normal smooth reading
+
+            let newPos = Math.min(totalLen, pos + charsThisTick);
 
             // Commit visual update
             indexRef.current = newPos;
