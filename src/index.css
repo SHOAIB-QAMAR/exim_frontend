@@ -125,7 +125,7 @@ body {
 }
 
 /* Strict Tablet/Desktop Condition */
-@media (min-width: 768px) and (min-height: 600px) {
+@media (min-width: 768px) and (min-height: 500px) {
     .mobile-ui-visible {
         display: none !important;
     }
