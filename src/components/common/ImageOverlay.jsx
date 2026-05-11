@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { FaXmark } from 'react-icons/fa6';
+import { FaXmark, FaDownload } from 'react-icons/fa6';
 const PdfViewer = React.lazy(() => import('./PdfViewer'));
 import { getCachedUrl } from '../../services/fileCache';
 
@@ -15,7 +15,7 @@ const ImageOverlay = ({ isOpen, imageUrl, altText = "Media preview", onClose }) 
     const [cachedUrl, setCachedUrl] = useState(null);
     const wrapperRef = useRef(null);
 
-    const pdfPageWidth = Math.min(availableWidth * 0.95, 1200);
+    const pdfPageWidth = Math.min(availableWidth * 0.85, 900);
 
     // Cache the remote URL into a local blob on open
     const actuallyLoading = isOpen && imageUrl && !cachedUrl;
@@ -58,6 +58,34 @@ const ImageOverlay = ({ isOpen, imageUrl, altText = "Media preview", onClose }) 
         return () => { document.body.style.overflow = originalStyle || 'unset'; };
     }, [isOpen, container]);
 
+    const handleDownload = async (e) => {
+        e.stopPropagation();
+        const urlToDownload = cachedUrl || imageUrl;
+        if (!urlToDownload) return;
+
+        try {
+            const response = await fetch(urlToDownload);
+            const blob = await response.blob();
+            const blobUrl = window.URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = blobUrl;
+
+            // Extract filename from URL or use default
+            const urlParts = imageUrl.split('/');
+            const lastPart = urlParts[urlParts.length - 1];
+            const fileName = lastPart.includes('.') ? lastPart : (imageUrl.toLowerCase().includes('.pdf') ? 'document.pdf' : 'image.png');
+
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            window.URL.revokeObjectURL(blobUrl);
+        } catch (error) {
+            console.error('Download failed:', error);
+            window.open(urlToDownload, '_blank');
+        }
+    };
+
     if (!isOpen || !imageUrl || !container) return null;
 
     const isPdf = imageUrl.toLowerCase().includes('.pdf');
@@ -67,19 +95,41 @@ const ImageOverlay = ({ isOpen, imageUrl, altText = "Media preview", onClose }) 
     const modalContent = (
         <div
             ref={wrapperRef}
-            className={`${positionClass} z-[10000] bg-[var(--bg-primary)]/80 backdrop-blur-md animate-in fade-in duration-300 flex items-center justify-center p-4 md:p-8`}
+            className={`${positionClass} z-[10000] bg-[var(--bg-primary)]/95 backdrop-blur-md animate-in fade-in duration-300 flex flex-col`}
             onClick={onClose}
         >
-            <button
-                type="button"
-                className="absolute top-4 right-4 md:top-6 md:right-6 bg-[var(--bg-card)]/50 hover:bg-[var(--bg-card)] text-[var(--text-primary)] rounded-full transition-all shadow-lg z-[10001] border border-[var(--border-color)]"
-                onClick={(e) => { e.stopPropagation(); onClose(); }}
-                title="Close"
+            {/* Static Header Action Bar */}
+            <div
+                className="w-full flex justify-end items-center px-4 py-2 bg-[var(--bg-primary)] border-b border-[var(--border-color)] gap-2 z-[10001]"
+                onClick={(e) => e.stopPropagation()}
             >
-                <FaXmark className="text-lg md:text-xl" />
-            </button>
+                <button
+                    type="button"
+                    className="p-2 text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-black/5 rounded-lg transition-all flex items-center gap-2 group"
+                    onClick={handleDownload}
+                    title="Download"
+                >
+                    <FaDownload className="text-sm md:text-base group-hover:scale-110 transition-transform" />
+                    <span className="text-xs font-semibold hidden md:inline">Download</span>
+                </button>
 
-            <div className={`w-full h-full flex overflow-auto scrollbar-none ${isPdf ? 'items-start justify-center' : 'items-center justify-center'}`} onClick={(e) => e.stopPropagation()}>
+                <div className="w-px h-4 bg-[var(--border-color)] mx-1" />
+
+                <button
+                    type="button"
+                    className="p-2 text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-50 rounded-lg transition-all flex items-center justify-center"
+                    onClick={(e) => { e.stopPropagation(); onClose(); }}
+                    title="Close"
+                >
+                    <FaXmark className="text-lg md:text-xl" />
+                </button>
+            </div>
+
+            {/* Scrollable Content Area */}
+            <div
+                className={`flex-1 w-full overflow-auto scrollbar-thin scrollbar-thumb-gray-300 dark:scrollbar-thumb-gray-600 flex ${isPdf ? 'items-start justify-center' : 'items-center justify-center'} p-2 md:p-6`}
+                onClick={(e) => e.stopPropagation()}
+            >
                 {actuallyLoading ? (
                     <div className="flex flex-col items-center gap-4 text-[var(--brand-primary)]">
                         <span className="animate-spin w-10 h-10 border-4 border-current border-t-transparent rounded-full" />
@@ -92,10 +142,12 @@ const ImageOverlay = ({ isOpen, imageUrl, altText = "Media preview", onClose }) 
                             <span className="text-sm font-medium animate-pulse">Loading Document Engine...</span>
                         </div>
                     }>
-                        <PdfViewer
-                            file={cachedUrl || imageUrl}
-                            width={pdfPageWidth}
-                        />
+                        <div className="w-full max-w-full">
+                            <PdfViewer
+                                file={cachedUrl || imageUrl}
+                                width={pdfPageWidth}
+                            />
+                        </div>
                     </React.Suspense>
                 ) : (
                     <img

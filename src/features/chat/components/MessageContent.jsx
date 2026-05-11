@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeSanitize from 'rehype-sanitize';
 import ImageOverlay from '../../../components/common/ImageOverlay';
+import { FaFilePdf, FaDownload } from 'react-icons/fa6';
 
 /**
  * MessageContent Component
@@ -25,10 +26,65 @@ const MessageContent = ({ content, onLinkClick }) => {
             const isMailto = href?.startsWith('mailto:');
             const isTel = href?.startsWith('tel:');
             const isExternal = href?.startsWith('http://') || href?.startsWith('https://');
+            const isPdf = href?.toLowerCase().split('?')[0].endsWith('.pdf');
 
             // Security check: Actively block javascript: and data: protocol URLs from executing, this is a secondary line of defense behind rehypeSanitize
             if (href?.match(/^(javascript|data|vbscript):/i)) {
                 return <span>{children}</span>;
+            }
+
+            if (isPdf) {
+                return (
+                    <div
+                        className="flex items-center gap-3 p-3 bg-black/10 border border-[var(--border-color)]/20 rounded-xl my-3 cursor-pointer hover:bg-black/20 transition-all group/pdf w-full max-w-xs"
+                        onClick={(e) => {
+                            e.preventDefault();
+                            setPreviewImage(href);
+                        }}
+                    >
+                        <div className="w-8 h-10 bg-[#f83c3c] rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover/pdf:scale-105">
+                            <FaFilePdf className="text-white text-xl" />
+                        </div>
+                        <div className="flex flex-col min-w-0 overflow-hidden pr-2 flex-1">
+                            <span className="text-sm font-bold text-[var(--text-primary)] truncate">
+                                {children || 'Document.pdf'}
+                            </span>
+                            <span className="text-[11px] text-[var(--text-secondary)] font-medium tracking-wide uppercase">
+                                PDF
+                            </span>
+                        </div>
+                        <button
+                            type="button"
+                            className="p-2 text-[var(--text-secondary)] hover:text-[var(--brand-primary)] hover:bg-black/20 rounded-full transition-all"
+                            onClick={async (e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+
+                                try {
+                                    const response = await fetch(href);
+                                    const blob = await response.blob();
+                                    const blobUrl = window.URL.createObjectURL(blob);
+                                    const link = document.createElement('a');
+                                    link.href = blobUrl;
+                                    // Use the children text as filename if available
+                                    const fileName = (typeof children === 'string' ? children : 'Document.pdf').replace(/\s+/g, '_');
+                                    link.download = fileName.toLowerCase().endsWith('.pdf') ? fileName : `${fileName}.pdf`;
+                                    document.body.appendChild(link);
+                                    link.click();
+                                    document.body.removeChild(link);
+                                    window.URL.revokeObjectURL(blobUrl);
+                                } catch (error) {
+                                    console.error('Download failed:', error);
+                                    // Fallback to opening in new tab if direct download fails
+                                    window.open(href, '_blank');
+                                }
+                            }}
+                            title="Download PDF"
+                        >
+                            <FaDownload className="text-base" />
+                        </button>
+                    </div>
+                );
             }
 
             return (
