@@ -36,7 +36,7 @@ const MessageContent = ({ content, onLinkClick }) => {
             if (isPdf) {
                 return (
                     <div
-                        className="flex items-center gap-3 p-3 bg-black/10 border border-[var(--border-color)]/20 rounded-xl my-3 cursor-pointer hover:bg-black/20 transition-all group/pdf w-full max-w-60"
+                        className="flex items-center gap-3 p-3 bg-black/10 border border-[var(--border-color)]/20 rounded-xl my-3 cursor-pointer hover:bg-black/20 transition-all group/pdf w-full max-w-xs"
                         onClick={(e) => {
                             e.preventDefault();
                             setPreviewImage(href);
