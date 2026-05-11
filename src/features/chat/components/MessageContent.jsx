@@ -36,21 +36,18 @@ const MessageContent = ({ content, onLinkClick }) => {
             if (isPdf) {
                 return (
                     <div
-                        className="flex items-center gap-3 p-3 bg-black/10 border border-[var(--border-color)]/20 rounded-xl my-3 cursor-pointer hover:bg-black/20 transition-all group/pdf w-full max-w-xs"
+                        className="flex items-center gap-3 p-3 bg-black/10 border border-[var(--border-color)]/20 rounded-xl my-3 cursor-pointer hover:bg-black/20 transition-all group/pdf w-full max-w-60"
                         onClick={(e) => {
                             e.preventDefault();
                             setPreviewImage(href);
                         }}
                     >
-                        <div className="w-8 h-10 bg-[#f83c3c] rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover/pdf:scale-105">
+                        <div className="w-10 h-10 bg-[#f83c3c] rounded-xl flex items-center justify-center shrink-0 shadow-sm transition-transform group-hover/pdf:scale-105">
                             <FaFilePdf className="text-white text-xl" />
                         </div>
                         <div className="flex flex-col min-w-0 overflow-hidden pr-2 flex-1">
                             <span className="text-sm font-bold text-[var(--text-primary)] truncate">
                                 {children || 'Document.pdf'}
-                            </span>
-                            <span className="text-[11px] text-[var(--text-secondary)] font-medium tracking-wide uppercase">
-                                PDF
                             </span>
                         </div>
                         <button
